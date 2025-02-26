@@ -53,7 +53,7 @@ const Initilize = async () => {
   })
 
   const pipeline: GPURenderPipeline = device.createRenderPipeline({
-    layout: "auto",
+    layout: pipelineLayout,
     vertex: {
       module: device.createShaderModule({
         code: shader,
@@ -70,7 +70,7 @@ const Initilize = async () => {
     },
     primitive: {
       topology: 'triangle-list',
-    }
+    },
   });
 
   const commandEncoder: GPUCommandEncoder = device.createCommandEncoder();  
