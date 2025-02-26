@@ -1,5 +1,6 @@
 import './style.css'
 import shader from './shaders.wgsl?raw'
+import { TriangleMesh } from './triangle_mesh';
 
 
 const app: HTMLDivElement = document.querySelector<HTMLDivElement>('#app')!;
@@ -30,11 +31,27 @@ const Initilize = async () => {
   const device: GPUDevice = <GPUDevice>await adaptor.requestDevice();
   const context: GPUCanvasContext = <GPUCanvasContext>canvas.getContext('webgpu'); 
   const format: GPUTextureFormat = 'bgra8unorm';
-  context.configure({ //swapchain
+  context.configure({
    device: device,
    format: format, 
    alphaMode: 'opaque'
   });
+
+
+  const triangleMesh: TriangleMesh = new TriangleMesh(device);
+
+  const bingGroupLayout: GPUBindGroupLayout = device.createBindGroupLayout({
+    entries: []
+  });
+  const bingGroup: GPUBindGroup = device.createBindGroup({
+    layout: bingGroupLayout,
+    entries: []
+  });
+
+  const pipelineLayout: GPUPipelineLayout = device.createPipelineLayout({
+    bindGroupLayouts: [bingGroupLayout]
+  })
+
   const pipeline: GPURenderPipeline = device.createRenderPipeline({
     layout: "auto",
     vertex: {
@@ -42,6 +59,7 @@ const Initilize = async () => {
         code: shader,
       }),
       entryPoint: 'vs_main',
+      buffers: [triangleMesh.bufferLayout]
     },
     fragment: {
       module: device.createShaderModule({
@@ -65,6 +83,8 @@ const Initilize = async () => {
       storeOp: 'store',
     }]})
     renderpass.setPipeline(pipeline);
+    renderpass.setBindGroup(0, bingGroup);
+    renderpass.setVertexBuffer(0, triangleMesh.buffer);
     renderpass.draw(3, 1, 0, 0);
     renderpass.end();
     device.queue.submit([commandEncoder.finish()]);
