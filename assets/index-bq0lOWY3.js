@@ -1,0 +1,18 @@
+var u=Object.defineProperty;var d=(s,e,r)=>e in s?u(s,e,{enumerable:!0,configurable:!0,writable:!0,value:r}):s[e]=r;var n=(s,e,r)=>d(s,typeof e!="symbol"?e+"":e,r);(function(){const e=document.createElement("link").relList;if(e&&e.supports&&e.supports("modulepreload"))return;for(const t of document.querySelectorAll('link[rel="modulepreload"]'))i(t);new MutationObserver(t=>{for(const o of t)if(o.type==="childList")for(const a of o.addedNodes)a.tagName==="LINK"&&a.rel==="modulepreload"&&i(a)}).observe(document,{childList:!0,subtree:!0});function r(t){const o={};return t.integrity&&(o.integrity=t.integrity),t.referrerPolicy&&(o.referrerPolicy=t.referrerPolicy),t.crossOrigin==="use-credentials"?o.credentials="include":t.crossOrigin==="anonymous"?o.credentials="omit":o.credentials="same-origin",o}function i(t){if(t.ep)return;t.ep=!0;const o=r(t);fetch(t.href,o)}})();const c=`struct Fragment{
+    @builtin(position) Position: vec4<f32>,
+    @location(0) Color: vec4<f32>,
+}
+
+@vertex
+fn vs_main(@location(0) vertexPosition: vec2<f32>, @location(1) vertexColor: vec3<f32>) -> Fragment{
+
+    var output : Fragment;
+    output.Position = vec4<f32>(vertexPosition, 1.0);
+    output.Color = vec4<f32>(vertexColor,1.);
+    return output;
+}
+
+@fragment
+fn fs_main(@location(0) Color: vec4<f32>) -> @location(0) vec4<f32>{
+    return Color;
+}`;class f{constructor(e){n(this,"buffer");n(this,"bufferLayout");const r=new Float32Array([0,0,.5,1,0,0,0,-.5,-.5,0,1,0,0,.5,-.5,0,0,1]),i=GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST,t={size:r.byteLength,usage:i,mappedAtCreation:!0};this.buffer=e.createBuffer(t),new Float32Array(this.buffer.getMappedRange()).set(r),this.buffer.unmap(),this.bufferLayout={arrayStride:6*4,attributes:[{shaderLocation:0,format:"float32x3",offset:0},{shaderLocation:1,format:"float32x3",offset:2*4}]}}}class l{constructor(e){n(this,"canvas");n(this,"adaptor");n(this,"device");n(this,"context");n(this,"format");n(this,"bindGroup");n(this,"pipeline");n(this,"triangleMesh");this.canvas=e}async init(){await this.setupDevice(),this.createAssets(),await this.setupPipeline(),this.render()}async setupDevice(){var r,i;this.adaptor=await((r=navigator.gpu)==null?void 0:r.requestAdapter()),this.device=await((i=this.adaptor)==null?void 0:i.requestDevice());const e=document.querySelector("#compcheck");if(this.adaptor)e.innerHTML="WebGPU is supported";else{e.innerHTML="WebGPU is not supported",console.error("WebGPU is not supported on this device!");return}this.context=this.canvas.getContext("webgpu"),this.format="bgra8unorm",this.context.configure({device:this.device,format:this.format,alphaMode:"opaque"})}async setupPipeline(){const e=this.device.createBindGroupLayout({entries:[]});this.bindGroup=this.device.createBindGroup({layout:e,entries:[]});const r=this.device.createPipelineLayout({bindGroupLayouts:[e]});this.pipeline=this.device.createRenderPipeline({layout:r,vertex:{module:this.device.createShaderModule({code:c}),entryPoint:"vs_main",buffers:[this.triangleMesh.bufferLayout]},fragment:{module:this.device.createShaderModule({code:c}),entryPoint:"fs_main",targets:[{format:this.format}]},primitive:{topology:"triangle-list"}})}createAssets(){this.triangleMesh=new f(this.device)}async render(){const e=this.device.createCommandEncoder(),r=this.context.getCurrentTexture().createView(),i=e.beginRenderPass({colorAttachments:[{view:r,clearValue:{r:.5,g:0,b:.25,a:1},loadOp:"clear",storeOp:"store"}]});i.setPipeline(this.pipeline),i.setBindGroup(0,this.bindGroup),i.setVertexBuffer(0,this.triangleMesh.buffer),i.draw(3,1,0,0),i.end(),this.device.queue.submit([e.finish()])}}const p=document.getElementById("gfx-main"),h=new l(p);h.init();
