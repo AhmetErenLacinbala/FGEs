@@ -17,6 +17,7 @@
     "vite": "^6.1.0"
   },
   "dependencies": {
+    "gl-matrix": "^3.4.3",
     "ts-shader-loader": "^2.0.2"
   }
 }

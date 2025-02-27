@@ -1,5 +1,6 @@
 import shader from './shaders.wgsl?raw'
 import { TriangleMesh } from './triangle_mesh';
+import { mat4 } from 'gl-matrix'
 
 export default class Renderer {
     canvas: HTMLCanvasElement;
@@ -9,13 +10,18 @@ export default class Renderer {
     context!: GPUCanvasContext;
     format!: GPUTextureFormat;
 
+    uniformBuffer!: GPUBuffer
     bindGroup!: GPUBindGroup;
     pipeline!: GPURenderPipeline;
 
+
     triangleMesh!: TriangleMesh;
+
+    t: number;
 
     constructor(canvas: HTMLCanvasElement) {
         this.canvas = canvas
+        this.t = 0.
     }
 
     async init() {
@@ -54,12 +60,33 @@ export default class Renderer {
     }
 
     async setupPipeline() {
+
+        this.uniformBuffer = this.device.createBuffer({
+            size: 64 * 3,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+        })
+
         const bindGroupLayout: GPUBindGroupLayout = this.device.createBindGroupLayout({
-            entries: []
+            entries:
+                [
+                    {
+                        binding: 0,
+                        visibility: GPUShaderStage.VERTEX,
+                        buffer: {}
+                    }
+                ]
         });
         this.bindGroup = this.device.createBindGroup({
             layout: bindGroupLayout,
-            entries: []
+            entries:
+                [
+                    {
+                        binding: 0,
+                        resource: {
+                            buffer: this.uniformBuffer
+                        }
+                    }
+                ]
         });
 
         const pipelineLayout: GPUPipelineLayout = this.device.createPipelineLayout({
@@ -96,7 +123,26 @@ export default class Renderer {
         this.triangleMesh = new TriangleMesh(this.device);
     }
 
-    async render() {
+    render = () => {
+
+        this.t += 0.1;
+        if (this.t > 2 * Math.PI) {
+            this.t = 0;
+        }
+
+        const projection = mat4.create();
+        mat4.perspective(projection, Math.PI / 4, 800 / 600, 0.1, 10.);
+
+        const view = mat4.create();
+        mat4.lookAt(view, [-2, 0, 2], [0, 0, 0], [0, 0, 1]);
+
+        const model = mat4.create();
+        mat4.rotate(model, model, this.t, [0, 0, 1]);
+
+        this.device.queue.writeBuffer(this.uniformBuffer, 0, <ArrayBuffer>model);
+        this.device.queue.writeBuffer(this.uniformBuffer, 64, <ArrayBuffer>view);
+        this.device.queue.writeBuffer(this.uniformBuffer, 128, <ArrayBuffer>projection);
+
         const commandEncoder: GPUCommandEncoder = this.device.createCommandEncoder();
         const textureView: GPUTextureView = this.context.getCurrentTexture().createView();
         const renderpass: GPURenderPassEncoder = commandEncoder.beginRenderPass({
@@ -113,5 +159,7 @@ export default class Renderer {
         renderpass.draw(3, 1, 0, 0);
         renderpass.end();
         this.device.queue.submit([commandEncoder.finish()]);
+
+        requestAnimationFrame(() => this.render());
     }
 }
