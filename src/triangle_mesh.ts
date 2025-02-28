@@ -3,11 +3,11 @@ export class TriangleMesh {
     bufferLayout: GPUVertexBufferLayout;
 
     constructor(device: GPUDevice) {
-        //x y z r g b
+        //x y z u v
         const vertices: Float32Array = new Float32Array([
-            0.0, 0.0, 0.5, 1.0, 0.0, 0.0,
-            0.0, -0.5, -0.5, 0.0, 1.0, 0.0,
-            0.0, 0.5, -0.5, 0.0, 0.0, 1.0,
+            0.0, 0.0, 0.5, .5, 0.0,
+            0.0, -0.5, -0.5, 0.0, 1.0,
+            0.0, 0.5, -0.5, 1.0, 1.0,
         ]);
         const usage: GPUBufferUsageFlags = GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST;
         const descriptor: GPUBufferDescriptor = {
@@ -20,7 +20,7 @@ export class TriangleMesh {
         this.buffer.unmap();
 
         this.bufferLayout = {
-            arrayStride: 6 * 4,
+            arrayStride: 5 * 4,
             attributes: [
                 {
                     shaderLocation: 0,
@@ -29,7 +29,7 @@ export class TriangleMesh {
                 },
                 {
                     shaderLocation: 1,
-                    format: 'float32x3', //r g b
+                    format: 'float32x2', //r g b
                     offset: 3 * 4,
                 }
 

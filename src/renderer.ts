@@ -101,7 +101,7 @@ export default class Renderer {
                     {
                         binding: 1,
                         resource: this.material.view
-                    }
+                    },
                     {
                         binding: 2,
                         resource: this.material.sampler
