@@ -2,6 +2,8 @@ import Material from './material';
 import shader from './shaders.wgsl?raw'
 import { TriangleMesh } from './triangle_mesh';
 import { mat4 } from 'gl-matrix'
+import Camera from '../model/camera';
+import Triangle from '../model/triangle';
 
 export default class Renderer {
     canvas: HTMLCanvasElement;
@@ -19,11 +21,10 @@ export default class Renderer {
     triangleMesh!: TriangleMesh;
     material!: Material;
 
-    t: number;
 
     constructor(canvas: HTMLCanvasElement) {
         this.canvas = canvas
-        this.t = 0.
+
     }
 
     async init() {
@@ -33,7 +34,6 @@ export default class Renderer {
 
         await this.setupPipeline();
 
-        this.render();
     }
 
     async setupDevice() {
@@ -145,25 +145,26 @@ export default class Renderer {
         await this.material.init(this.device, 'img/img.jpeg');
     }
 
-    render = () => {
-
-        this.t += 0.1;
-        if (this.t > 2 * Math.PI) {
-            this.t = 0;
+    async render(camera: Camera, triangles: Triangle[]) {
+        if (!this.uniformBuffer) {
+            console.error("Uniform buffer is not initialized!");
+            return;
+        }
+        if (!this.bindGroup) {
+            console.error("BindGroup is not initialized!");
+            return;
         }
 
+
         const projection = mat4.create();
-        mat4.perspective(projection, Math.PI / 4, 800 / 600, 0.1, 10.);
+        mat4.perspective(projection, Math.PI / 4, 800 / 600, 0.1, 50.);
 
-        const view = mat4.create();
-        mat4.lookAt(view, [-2, 0, 2], [0, 0, 0], [0, 0, 1]);
+        const view = camera.getView();
 
-        const model = mat4.create();
-        mat4.rotate(model, model, this.t, [0, 0, 1]);
 
-        this.device.queue.writeBuffer(this.uniformBuffer, 0, <ArrayBuffer>model);
-        this.device.queue.writeBuffer(this.uniformBuffer, 64, <ArrayBuffer>view);
-        this.device.queue.writeBuffer(this.uniformBuffer, 128, <ArrayBuffer>projection);
+
+        this.device.queue.writeBuffer(this.uniformBuffer, 64, new Float32Array(view));
+        this.device.queue.writeBuffer(this.uniformBuffer, 128, new Float32Array(projection));
 
         const commandEncoder: GPUCommandEncoder = this.device.createCommandEncoder();
         const textureView: GPUTextureView = this.context.getCurrentTexture().createView();
@@ -176,12 +177,19 @@ export default class Renderer {
             }]
         })
         renderpass.setPipeline(this.pipeline);
-        renderpass.setBindGroup(0, this.bindGroup);
         renderpass.setVertexBuffer(0, this.triangleMesh.buffer);
-        renderpass.draw(3, 1, 0, 0);
+
+        triangles.forEach((triangle: Triangle) => {
+
+            const model = triangle.getModel();
+            this.device.queue.writeBuffer(this.uniformBuffer, 0, new Float32Array(model));
+            renderpass.setBindGroup(0, this.bindGroup);
+            renderpass.draw(3, 1, 0, 0);
+        })
+
+
         renderpass.end();
         this.device.queue.submit([commandEncoder.finish()]);
 
-        requestAnimationFrame(() => this.render());
     }
 }

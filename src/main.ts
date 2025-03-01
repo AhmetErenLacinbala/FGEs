@@ -1,9 +1,10 @@
 import './style.css'
-import Renderer from './renderer';
+import App from './control/app';
 
 
 
 const canvas: HTMLCanvasElement | null = document.getElementById('gfx-main') as HTMLCanvasElement;
 
-const renderer = new Renderer(canvas!);
-renderer.init();
+const app = new App(canvas);
+await app.init();
+app.run();

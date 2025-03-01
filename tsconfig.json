@@ -25,7 +25,7 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": true,
-    "types": ["node", "@webgpu/types"],
+    "types": ["node", "@webgpu/types", "@types/jquery"],
   },
   "include": ["src"]
 }

@@ -11,6 +11,7 @@
     "deploy": "gh-pages -d dist"
   },
   "devDependencies": {
+    "@types/jquery": "^3.5.32",
     "@webgpu/types": "^0.1.54",
     "gh-pages": "^6.3.0",
     "typescript": "~5.7.2",
@@ -18,6 +19,7 @@
   },
   "dependencies": {
     "gl-matrix": "^3.4.3",
+    "jquery": "^3.7.1",
     "ts-shader-loader": "^2.0.2"
   }
 }
