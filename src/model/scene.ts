@@ -11,11 +11,11 @@ export default class Scene {
         this.triangles.push(
             new Triangle([2., 0., 0.], 0.0)
         );
-        this.player = new Camera([-2.0, 0.0, 0.5], 0, 0);
+        this.player = new Camera([-2.0, 0.0, 0.], 0, 0);
     }
     update() {
         this.triangles.forEach((triangle: Triangle) => triangle.update());
-        this.player.update;
+        this.player.update();
     }
     getPlayer(): Camera {
         return this.player;

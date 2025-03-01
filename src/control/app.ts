@@ -31,7 +31,6 @@ export default class App {
 
         $(document).on("keydown", (event) => { this.handleKeyPress(event) })
         $(document).on("keyup", (event) => { this.handleKeyRelease(event) })
-        $(document).on("mousemove", (event) => { this.handleMouseMove(event) })
 
         this.canvas.onclick = () => { this.canvas.requestPointerLock() }
         this.canvas.addEventListener("mousemove", (event) => { this.handleMouseMove(event) })
@@ -54,16 +53,16 @@ export default class App {
     handleKeyPress(event: JQuery.KeyDownEvent) {
         this.keyLabel.innerHTML = event.code;
         if (event.code === "KeyW") {
-            this.forwardsAmount = 0.2;
+            this.forwardsAmount = 0.1;
         }
         if (event.code === "KeyS") {
-            this.forwardsAmount = -0.2;
+            this.forwardsAmount = -0.1;
         }
         if (event.code === "KeyA") {
-            this.rightAmount = -0.2;
+            this.rightAmount = -0.1;
         }
         if (event.code === "KeyD") {
-            this.rightAmount = 0.2;
+            this.rightAmount = 0.1;
         }
     }
 
@@ -86,6 +85,6 @@ export default class App {
     handleMouseMove(event: MouseEvent) {
         this.mouseXLabel.innerHTML = event.clientX.toString()
         this.mouseYLabel.innerHTML = event.clientY.toString()
-        this.scene.spinPlayer(event.movementX, event.movementY);
+        this.scene.spinPlayer(event.movementX / 10, -event.movementY / 10);
     }
 }
