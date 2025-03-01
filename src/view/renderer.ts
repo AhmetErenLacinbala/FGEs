@@ -48,7 +48,7 @@ export default class Renderer {
             return;
         }
         else {
-            check.innerHTML = 'WebGPU is supported';
+            check.innerHTML = 'WebGPU is supported. Click to the canvas';
         }
 
         this.context = <GPUCanvasContext>this.canvas.getContext('webgpu');
