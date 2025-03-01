@@ -14,7 +14,7 @@ export default class App {
 
     forwardsAmount: number;
     rightAmount: number;
-
+    upAmount: number;
 
     constructor(canvas: HTMLCanvasElement) {
         this.canvas = canvas;
@@ -28,6 +28,7 @@ export default class App {
 
         this.forwardsAmount = 0;
         this.rightAmount = 0;
+        this.upAmount = 0;
 
         $(document).on("keydown", (event) => { this.handleKeyPress(event) })
         $(document).on("keyup", (event) => { this.handleKeyRelease(event) })
@@ -44,7 +45,7 @@ export default class App {
     run = () => {
         let running: boolean = true;
         this.scene.update();
-        this.scene.movePlayer(this.forwardsAmount, this.rightAmount);
+        this.scene.movePlayer(this.forwardsAmount, this.rightAmount, this.upAmount);
         this.renderer.render(this.scene.getPlayer(), this.scene.getTriangles());
         if (running) {
             requestAnimationFrame(this.run);
@@ -64,6 +65,12 @@ export default class App {
         if (event.code === "KeyD") {
             this.rightAmount = 0.1;
         }
+        if (event.code === "KeyE") {
+            this.upAmount += 0.1;
+        }
+        if (event.code === "KeyQ") {
+            this.upAmount += -0.1;
+        }
     }
 
     handleKeyRelease(event: JQuery.KeyUpEvent) {
@@ -79,6 +86,12 @@ export default class App {
         }
         if (event.code === "KeyD") {
             this.rightAmount = 0;
+        }
+        if (event.code === "KeyE") {
+            this.upAmount = 0;
+        }
+        if (event.code === "KeyQ") {
+            this.upAmount = 0;
         }
     }
 

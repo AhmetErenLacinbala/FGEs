@@ -32,12 +32,15 @@ export default class Scene {
 
     }
 
-    movePlayer(forwardsAmount: number, rightAmount: number) {
+    movePlayer(forwardsAmount: number, rightAmount: number, upAmount: number) {
         vec3.scaleAndAdd(
             this.player.position, this.player.position, this.player.forwards, forwardsAmount
         );
         vec3.scaleAndAdd(
             this.player.position, this.player.position, this.player.right, rightAmount
+        );
+        vec3.scaleAndAdd(
+            this.player.position, this.player.position, this.player.up, upAmount
         );
     }
 }
