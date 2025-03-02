@@ -46,7 +46,7 @@ export default class App {
         let running: boolean = true;
         this.scene.update();
         this.scene.movePlayer(this.forwardsAmount, this.rightAmount, this.upAmount);
-        this.renderer.render(this.scene.getPlayer(), this.scene.getTriangles());
+        this.renderer.render(this.scene.getPlayer(), this.scene.getTriangles(), this.scene.triangle_count);
         if (running) {
             requestAnimationFrame(this.run);
         }

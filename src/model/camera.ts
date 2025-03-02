@@ -20,14 +20,11 @@ export default class Camera {
         this.right = vec3.create();
         this.up = vec3.create();
 
-        const target: vec3 = vec3.fromValues(0, 0, 1);
-        this.view = mat4.create();
-        mat4.lookAt(this.view, this.position, target, [0, 1, 0]);
     }
 
     update() {
 
-        this.forwards = [
+        this.forwards = [ //Convert from spherical coordinates to rectangular coordinates
             Math.cos(Deg2Rad(this.eulers[2])) * Math.cos(Deg2Rad(this.eulers[1])),
             Math.sin(Deg2Rad(this.eulers[2])) * Math.cos(Deg2Rad(this.eulers[1])),
             Math.sin(Deg2Rad(this.eulers[1]))
