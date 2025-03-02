@@ -20,6 +20,9 @@ export default class Camera {
         this.right = vec3.create();
         this.up = vec3.create();
 
+        /*const target: vec3 = vec3.fromValues(0, 0, 1);
+        this.view = mat4.create();
+        mat4.lookAt(this.view, this.position, target, [0, 1, 0]);*/
     }
 
     update() {

@@ -22,7 +22,7 @@ export default class Scene {
 
             let blank_matrix = mat4.create();
             for (let j = 0; j < 16; j++) {
-                this.object_data[16 * i * j] = <number>blank_matrix.at(j);
+                this.object_data[16 * i + j] = <number>blank_matrix.at(j);
             }
             i++;
             this.triangle_count++;
@@ -35,7 +35,7 @@ export default class Scene {
             triangle.update();
             let model = triangle.getModel();
             for (let j = 0; j < 16; j++) {
-                this.object_data[16 * i * j] = <number>model.at(j);
+                this.object_data[16 * i + j] = <number>model.at(j);
             }
             i++;
         });
