@@ -1,21 +1,32 @@
 import Triangle from "./triangle";
 import Camera from "./camera";
 import { vec3, mat4 } from "gl-matrix";
+import Quad from "./quad";
+import { ObjectTypes, RenderData } from "./definitions";
 
 export default class Scene {
     triangles: Triangle[];
+    quads: Quad[]
     player: Camera;
     object_data: Float32Array;
     triangle_count: number;
-
+    quad_count: number;
     constructor() {
         this.triangles = [];
+        this.quads = []
         this.object_data = new Float32Array(16 * 1024);
         this.triangle_count = 0;
+        this.quad_count = 0;
 
 
+        this.makeTriangles();
+        this.makeQuads();
+        this.player = new Camera([-2.0, 0.0, 0.], 0, 0);
+    }
+
+    makeTriangles() {
         let i: number = 0;
-        for (let y = -5; y < 5; y++) {
+        for (let y = -5; y <= 5; y++) {
             this.triangles.push(
                 new Triangle([2., y, 0.], 0.0)
             );
@@ -27,8 +38,27 @@ export default class Scene {
             i++;
             this.triangle_count++;
         }
-        this.player = new Camera([-2.0, 0.0, 0.], 0, 0);
     }
+
+    makeQuads() {
+        var i: number = this.triangle_count;
+        for (let x = -10; x <= 10; x++) {
+
+            for (let y = -10; y <= 10; y++) {
+                this.quads.push(
+                    new Quad([x, y, -0.5])
+                );
+
+                let blank_matrix = mat4.create();
+                for (let j = 0; j < 16; j++) {
+                    this.object_data[16 * i + j] = <number>blank_matrix.at(j);
+                }
+                i++;
+                this.quad_count++;
+            }
+        }
+    }
+
     update() {
         let i = 0;
         this.triangles.forEach((triangle: Triangle) => {
@@ -39,13 +69,30 @@ export default class Scene {
             }
             i++;
         });
+
+        this.quads.forEach((quad: Quad) => {
+            quad.update();
+            let model = quad.getModel();
+            for (let j = 0; j < 16; j++) {
+                this.object_data[16 * i + j] = <number>model.at(j);
+            }
+            i++;
+        });
+
         this.player.update();
     }
     getPlayer(): Camera {
         return this.player;
     }
-    getTriangles(): Float32Array {
-        return this.object_data;
+    getObjects(): RenderData {
+        return {
+            viewTransform: this.player.getView(),
+            modelTransform: this.object_data,
+            objectCounts: {
+                [ObjectTypes.TRIANGLE]: this.triangle_count,
+                [ObjectTypes.QUAD]: this.quad_count
+            }
+        }
     }
 
     spinPlayer(dX: number, dY: number) {
