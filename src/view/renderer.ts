@@ -4,6 +4,7 @@ import { TriangleMesh } from './triangle_mesh';
 import { mat4 } from 'gl-matrix'
 import { ObjectTypes, RenderData } from '../model/definitions';
 import QuadMesh from './quadMesh';
+import ObjMesh from './objMesh';
 
 export default class Renderer {
     canvas: HTMLCanvasElement;
@@ -28,6 +29,7 @@ export default class Renderer {
 
     triangleMesh!: TriangleMesh;
     quadMesh!: QuadMesh;
+    statueMesh!: ObjMesh;
     triangleMaterial!: Material;
     quadMaterial!: Material;
     objectBuffer!: GPUBuffer;
@@ -195,6 +197,9 @@ export default class Renderer {
         this.quadMesh = new QuadMesh(this.device);
         this.quadMaterial = new Material();
 
+        this.statueMesh = new ObjMesh();
+        await this.statueMesh.init(this.device, 'models/statue.obj');
+
         this.uniformBuffer = this.device.createBuffer({
             size: 64 * 2,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
@@ -266,6 +271,13 @@ export default class Renderer {
         renderpass.setBindGroup(1, this.quadMaterial.bindGroup);
         renderpass.draw(6, renderObjects.objectCounts[ObjectTypes.QUAD], 0, objectsDrawn);
         objectsDrawn += renderObjects.objectCounts[ObjectTypes.QUAD];
+
+
+        //statue
+        renderpass.setVertexBuffer(0, this.statueMesh.buffer);
+        renderpass.setBindGroup(1, this.triangleMaterial.bindGroup);
+        renderpass.draw(this.statueMesh.vertexCount, 1, 0, objectsDrawn);
+        objectsDrawn += 1;
 
         renderpass.end();
         this.device.queue.submit([commandEncoder.finish()]);

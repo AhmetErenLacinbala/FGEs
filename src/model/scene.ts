@@ -3,6 +3,7 @@ import Camera from "./camera";
 import { vec3, mat4 } from "gl-matrix";
 import Quad from "./quad";
 import { ObjectTypes, RenderData } from "./definitions";
+import Statue from "./statue";
 
 export default class Scene {
     triangles: Triangle[];
@@ -10,6 +11,7 @@ export default class Scene {
     player: Camera;
     object_data: Float32Array;
     triangle_count: number;
+    statue: Statue;
     quad_count: number;
     constructor() {
         this.triangles = [];
@@ -21,6 +23,8 @@ export default class Scene {
 
         this.makeTriangles();
         this.makeQuads();
+
+        this.statue = new Statue([0., 0., 0.], [0., 0., 0.]);
         this.player = new Camera([-2.0, 0.0, 0.], 0, 0);
     }
 
@@ -78,7 +82,12 @@ export default class Scene {
             }
             i++;
         });
-
+        this.statue.update();
+        let model = this.statue.getModel();
+        for (let j = 0; j < 16; j++) {
+            this.object_data[16 * i + j] = <number>model.at(j);
+        }
+        i++;
         this.player.update();
     }
     getPlayer(): Camera {
