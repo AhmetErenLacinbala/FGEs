@@ -5,6 +5,7 @@ import { mat4 } from 'gl-matrix'
 import { ObjectTypes, RenderData } from '../model/definitions';
 import QuadMesh from './quadMesh';
 import ObjMesh from './objMesh';
+import Builder from '../model/builder';
 
 export default class Renderer {
     canvas: HTMLCanvasElement;
@@ -33,6 +34,8 @@ export default class Renderer {
     triangleMaterial!: Material;
     quadMaterial!: Material;
     objectBuffer!: GPUBuffer;
+
+    objParser!: Builder;
 
 
     constructor(canvas: HTMLCanvasElement) {
@@ -195,7 +198,11 @@ export default class Renderer {
         this.triangleMaterial = new Material();
 
         this.quadMesh = new QuadMesh(this.device);
+
         this.quadMaterial = new Material();
+
+        this.objParser = new Builder();
+        this.objParser.loadGLTF("models/flat_vase.glb");
 
         this.statueMesh = new ObjMesh();
         await this.statueMesh.init(this.device, 'models/statue.obj');
@@ -281,6 +288,7 @@ export default class Renderer {
 
         renderpass.end();
         this.device.queue.submit([commandEncoder.finish()]);
+
 
     }
 

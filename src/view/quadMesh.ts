@@ -2,6 +2,8 @@ export default class QuadMesh {
     buffer: GPUBuffer;
     bufferLayout: GPUVertexBufferLayout;
 
+
+
     constructor(device: GPUDevice) {
         //x y z u v
         const vertices: Float32Array = new Float32Array(

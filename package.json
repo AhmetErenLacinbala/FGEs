@@ -18,8 +18,13 @@
     "vite": "^6.1.0"
   },
   "dependencies": {
+    "@gltf-transform/core": "^4.1.2",
+    "@gltf-transform/extensions": "^4.1.2",
+    "@gltf-transform/functions": "^4.1.2",
+    "@types/obj-file-parser": "^0.5.2",
     "gl-matrix": "^3.4.3",
     "jquery": "^3.7.1",
+    "obj-file-parser": "^0.6.2",
     "ts-shader-loader": "^2.0.2"
   }
 }
