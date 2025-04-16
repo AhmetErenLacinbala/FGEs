@@ -18,6 +18,14 @@ export interface Vertex {
     uv: vec2;
 }
 
+export interface VertexTemp {
+    position: Float32Array;
+    //color: vec3;
+    //normal: vec3;
+    //uv: vec2;
+}
+
+
 export const vertexSize =
     3 * Float32Array.BYTES_PER_ELEMENT + // Position
     3 * Float32Array.BYTES_PER_ELEMENT + // Normal

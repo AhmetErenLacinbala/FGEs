@@ -47,6 +47,7 @@ export default class App {
         this.scene.update();
         this.scene.movePlayer(this.forwardsAmount, this.rightAmount, this.upAmount);
         this.renderer.render(this.scene.getObjects());
+        //console.log(this.scene.getObjects());
         if (running) {
             requestAnimationFrame(this.run);
         }

@@ -4,8 +4,10 @@ import { TriangleMesh } from './triangle_mesh';
 import { mat4 } from 'gl-matrix'
 import { ObjectTypes, RenderData } from '../model/definitions';
 import QuadMesh from './quadMesh';
-import ObjMesh from './objMesh';
+//import ObjMesh from './objMesh';
 import Builder from '../model/builder';
+import Model from '../model/model';
+import ObjMesh from './objMesh';
 
 export default class Renderer {
     canvas: HTMLCanvasElement;
@@ -31,11 +33,13 @@ export default class Renderer {
     triangleMesh!: TriangleMesh;
     quadMesh!: QuadMesh;
     statueMesh!: ObjMesh;
+    model!: Model;
+
     triangleMaterial!: Material;
     quadMaterial!: Material;
     objectBuffer!: GPUBuffer;
 
-    objParser!: Builder;
+    builder!: Builder;
 
 
     constructor(canvas: HTMLCanvasElement) {
@@ -201,8 +205,9 @@ export default class Renderer {
 
         this.quadMaterial = new Material();
 
-        this.objParser = new Builder();
-        this.objParser.loadGLTF("models/flat_vase.glb");
+        this.builder = new Builder();
+        await this.builder.loadGLTF("models/flat_vase.glb");
+        this.model = new Model(this.device, this.builder);
 
         this.statueMesh = new ObjMesh();
         await this.statueMesh.init(this.device, 'models/statue.obj');
@@ -280,10 +285,16 @@ export default class Renderer {
         objectsDrawn += renderObjects.objectCounts[ObjectTypes.QUAD];
 
 
-        //statue
+        //statue-----
         renderpass.setVertexBuffer(0, this.statueMesh.buffer);
         renderpass.setBindGroup(1, this.triangleMaterial.bindGroup);
         renderpass.draw(this.statueMesh.vertexCount, 1, 0, objectsDrawn);
+        //console.log("statuebuffer: ", this.statueMesh.buffer);
+
+        renderpass.setVertexBuffer(0, this.model.buffer);
+        renderpass.setBindGroup(1, this.triangleMaterial.bindGroup);
+        renderpass.draw(this.model.vertexCount, 1, 0, objectsDrawn);
+        //console.log("modelbuffer: ", this.model.buffer);
         objectsDrawn += 1;
 
         renderpass.end();

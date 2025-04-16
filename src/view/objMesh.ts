@@ -73,6 +73,7 @@ export default class ObjMesh {
         })
 
         this.vertices = new Float32Array(result);
+        console.log(this.vertices);
     }
 
     readVertexLine(line: string) {
