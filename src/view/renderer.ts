@@ -32,7 +32,7 @@ export default class Renderer {
 
     triangleMesh!: TriangleMesh;
     quadMesh!: QuadMesh;
-    statueMesh!: ObjMesh;
+    //statueMesh!: ObjMesh;
     model!: Model;
 
     triangleMaterial!: Material;
@@ -209,8 +209,8 @@ export default class Renderer {
         await this.builder.loadGLTF("models/flat_vase.glb");
         this.model = new Model(this.device, this.builder);
 
-        this.statueMesh = new ObjMesh();
-        await this.statueMesh.init(this.device, 'models/statue.obj');
+        //this.statueMesh = new ObjMesh();
+        //await this.statueMesh.init(this.device, 'models/statue.obj');
 
         this.uniformBuffer = this.device.createBuffer({
             size: 64 * 2,
@@ -227,14 +227,7 @@ export default class Renderer {
     }
 
     async render(renderObjects: RenderData) {
-        /*if (!this.uniformBuffer) {
-            console.error("Uniform buffer is not initialized!");
-            return;
-        }
-        if (!this.bindGroup) {
-            console.error("BindGroup is not initialized!");
-            return;
-        }*/
+
 
         if (!this.device) {
             console.error("DEVICE IS NOT CREATED");
@@ -285,16 +278,11 @@ export default class Renderer {
         objectsDrawn += renderObjects.objectCounts[ObjectTypes.QUAD];
 
 
-        //statue-----
-        renderpass.setVertexBuffer(0, this.statueMesh.buffer);
+        this.model.bind(renderpass);
         renderpass.setBindGroup(1, this.triangleMaterial.bindGroup);
-        renderpass.draw(this.statueMesh.vertexCount, 1, 0, objectsDrawn);
-        //console.log("statuebuffer: ", this.statueMesh.buffer);
 
-        renderpass.setVertexBuffer(0, this.model.buffer);
-        renderpass.setBindGroup(1, this.triangleMaterial.bindGroup);
-        renderpass.draw(this.model.vertexCount, 1, 0, objectsDrawn);
-        //console.log("modelbuffer: ", this.model.buffer);
+        this.model.draw(renderpass, objectsDrawn);
+
         objectsDrawn += 1;
 
         renderpass.end();

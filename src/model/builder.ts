@@ -5,6 +5,8 @@ import { NodeIO, Primitive, WebIO, } from "@gltf-transform/core";
 export default class Builder {
     vertices: Vertex[];
     indices: number[];
+    vertexCount!: number;
+    indexCount!: number;
 
 
     constructor() {
@@ -41,49 +43,48 @@ export default class Builder {
             return;
         }
 
-        this.indices = Array.from(indices);
-        console.log("indices: ", this.indices);
-        for (let i = 0; i < indices.length; i++) {
-            const idx = indices[i];
+        // Create unique vertices directly from position/normal/uv attributes
+        const vertexCount = positions.length / 3;
+
+        for (let i = 0; i < vertexCount; i++) {
             this.vertices.push({
                 position: vec3.fromValues(
-                    positions[idx * 3], positions[idx * 3 + 1], positions[idx * 3 + 2]
+                    positions[i * 3],
+                    positions[i * 3 + 1],
+                    positions[i * 3 + 2]
                 ),
                 color: vec3.fromValues(1, 1, 1),
                 normal: normals
-                    ? vec3.fromValues(normals[idx * 3], normals[idx * 3 + 1], normals[idx * 3 + 2])
+                    ? vec3.fromValues(
+                        normals[i * 3],
+                        normals[i * 3 + 1],
+                        normals[i * 3 + 2]
+                    )
                     : vec3.create(),
                 uv: uvs
-                    ? vec2.fromValues(uvs[idx * 2], uvs[idx * 2 + 1])
+                    ? vec2.fromValues(uvs[i * 2], uvs[i * 2 + 1])
                     : vec2.create()
             });
         }
-        console.log("vertices: ", this.vertices);
 
-        /**
-         * 
-         */
-        /*console.log("Vertex Positions:", positions);
-        console.log("Vertex Normals:", normals);
-        console.log("Texture UVs:", uvs);
-        console.log("Indices:", indices);
-        console.log("vertex:", this.vertices);
-        console.log("index:", this.indices);*/
+        this.indices = Array.from(indices);
+        console.log("Vertices created:", this.vertices.length);
+        console.log("Indices count:", this.indices.length);
+
     }
     getFlattenedVertices(): Float32Array {
-        const data: number[] = [];
-        console.log("-------------------");
-        console.log("-------------------");
-        console.log("flatten vertices+++", this.vertices);
-        console.log("-------------------");
-        console.log("-------------------");
-        for (const vertex of this.vertices) {
-            data.push(...vertex.position);
-            console.log("flatten position", vertex.position);
-            //data.push(...vertex.uv);
+        const vertexArray = new Float32Array(this.vertices.length * 5); // position (3) + uv (2)
+
+        for (let i = 0; i < this.vertices.length; i++) {
+            const v = this.vertices[i];
+            vertexArray.set([...v.position, ...v.uv], i * 5);
         }
-        console.log("flatten vertices", data);
-        return new Float32Array(data);
+
+        return vertexArray;
+    }
+
+    getIndexArray(): Uint32Array {
+        return new Uint32Array(this.indices);
     }
 
     async loadFile(url: string) {
@@ -93,32 +94,3 @@ export default class Builder {
     }
 }
 
-/*async loadObj(url: string) {
-
-       const objFile = await new ObjFileParser(await this.loadFile(url))
-       const objData = objFile.parse();
-       let vertexOffset = 0;
-       console.log(objData.models);
-       objData.models.forEach((model) => {
-           console.log(`Merging model: ${model.name}`);
-           for (let i = 0; i < model.vertices.length; i++) {
-
-               console.log(`Merging model: ${model.name}, vertex: ${i}`);
-               let vertex: Vertex
-               vertex = {
-                   position: vec3.fromValues(model.vertices[i].x, model.vertices[i].y, model.vertices[i].z),
-                   color: vec3.fromValues(1, 1, 1),
-                   normal: model.vertexNormals && model.vertexNormals.length > 0
-                       ? vec3.fromValues(model.vertexNormals[i]?.x, model.vertexNormals[i]?.y, model.vertexNormals[i]?.z)
-                       : vec3.create(),
-                   uv: model.textureCoords && model.textureCoords.length > 0
-                       ? vec2.fromValues(model.textureCoords[i]?.u, model.textureCoords[i]?.v)
-                       : vec2.create()
-
-               }
-               console.log(vertex);
-           }
-
-       })
-       console.log(objFile.parse());
-   }*/

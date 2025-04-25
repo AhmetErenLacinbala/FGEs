@@ -26,7 +26,7 @@ export default class GameObject {
         mat4.rotateY(this.model, this.model, Deg2Rad(this.eulers[1]));
         mat4.rotateZ(this.model, this.model, Deg2Rad(this.eulers[2]));
 
-        mat4.scale(this.model, this.model, vec3.fromValues(2, 2, 2));
+
     }
 
     getModel() {
