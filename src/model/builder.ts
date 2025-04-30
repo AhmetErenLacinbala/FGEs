@@ -36,7 +36,6 @@ export default class Builder {
         const uvs = primitive.getAttribute('TEXCOORD_0')?.getArray();
         const indices = primitive.getIndices()?.getArray();
 
-        console.log("raw positions: ", positions);
 
         if (!positions || !indices) {
             console.error("Missing position or index data!");
@@ -68,8 +67,6 @@ export default class Builder {
         }
 
         this.indices = Array.from(indices);
-        console.log("Vertices created:", this.vertices.length);
-        console.log("Indices count:", this.indices.length);
 
     }
     getFlattenedVertices(): Float32Array {
