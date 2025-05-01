@@ -1,4 +1,4 @@
-import shader from './mipmapComputerShader.wgsl?raw'
+//import shader from './mipmapComputerShader.wgsl?raw'
 
 export default class Material {
 

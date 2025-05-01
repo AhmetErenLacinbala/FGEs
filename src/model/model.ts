@@ -1,6 +1,4 @@
 
-import { Vertex, vertexSize, VertexTemp } from "./definitions";
-import { vec3, vec2 } from "@gltf-transform/core";
 import Builder from "./builder";
 import Material from "../view/material";
 export default class Model {

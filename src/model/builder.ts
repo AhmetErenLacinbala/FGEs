@@ -1,7 +1,7 @@
-import ObjFileParser from "obj-file-parser";
+
 import { Vertex } from "./definitions";
 import { vec3, vec2 } from "gl-matrix";
-import { NodeIO, Primitive, WebIO, } from "@gltf-transform/core";
+import { Primitive, WebIO, } from "@gltf-transform/core";
 export default class Builder {
     vertices: Vertex[];
     indices: number[];

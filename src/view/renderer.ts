@@ -7,7 +7,6 @@ import QuadMesh from './quadMesh';
 //import ObjMesh from './objMesh';
 import Builder from '../model/builder';
 import Model from '../model/model';
-import ObjMesh from './objMesh';
 
 export default class Renderer {
     canvas: HTMLCanvasElement;
@@ -204,7 +203,7 @@ export default class Renderer {
         this.quadMesh = new QuadMesh(this.device);
 
         this.quadMaterial = new Material();
-        await this.quadMaterial.initComputeShader(this.device);
+        //await this.quadMaterial.initComputeShader(this.device);
 
         this.builder = new Builder();
         await this.builder.loadGLTF("models/flat_vase.glb");

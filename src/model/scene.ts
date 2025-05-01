@@ -3,7 +3,6 @@ import Camera from "./camera";
 import { vec3, mat4 } from "gl-matrix";
 import Quad from "./quad";
 import { ObjectTypes, RenderData } from "./definitions";
-import Statue from "./statue";
 import GameObject from "./object";
 
 export default class Scene {
