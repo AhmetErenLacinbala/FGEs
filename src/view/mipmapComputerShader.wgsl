@@ -1,35 +1,16 @@
+@group(0) @binding(0) var inputTexture: texture_2d<f32>;
+@group(0) @binding(1) var outputTexture: texture_storage_2d<rgba8unorm, write>;
 
-// NOTE!: vec3u is padded to by 4 bytes
-@group(0) @binding(0) var<storage, read_write> workgroupResult: array<vec3u>;
-@group(0) @binding(1) var<storage, read_write> localResult: array<vec3u>;
-@group(0) @binding(2) var<storage, read_write> globalResult: array<vec3u>;
- 
-@compute @workgroup_size(${workgroupSize}) fn computeSomething(
-    @builtin(workgroup_id) workgroup_id : vec3<u32>,
-    @builtin(local_invocation_id) local_invocation_id : vec3<u32>,
-    @builtin(global_invocation_id) global_invocation_id : vec3<u32>,
-    @builtin(local_invocation_index) local_invocation_index: u32,
-    @builtin(num_workgroups) num_workgroups: vec3<u32>
-) {
-  // workgroup_index is similar to local_invocation_index except for
-  // workgroups, not threads inside a workgroup.
-  // It is not a builtin so we compute it ourselves.
- 
-  let workgroup_index =  
-     workgroup_id.x +
-     workgroup_id.y * num_workgroups.x +
-     workgroup_id.z * num_workgroups.x * num_workgroups.y;
- 
-  // global_invocation_index is like local_invocation_index
-  // except linear across all invocations across all dispatched
-  // workgroups. It is not a builtin so we compute it ourselves.
- 
-  let global_invocation_index =
-     workgroup_index * ${numThreadsPerWorkgroup} +
-     local_invocation_index;
- 
-  // now we can write each of these builtins to our buffers.
-  workgroupResult[global_invocation_index] = workgroup_id;
-  localResult[global_invocation_index] = local_invocation_id;
-  globalResult[global_invocation_index] = global_invocation_id;
+@compute @workgroup_size(8, 8)
+fn main(@builtin(global_invocation_id) id: vec3<u32>) {
+    let srcCoord = id.xy * 2u;
+
+    let c0 = textureLoad(inputTexture, srcCoord, 0);
+    let c1 = textureLoad(inputTexture, srcCoord + vec2u(1, 0), 0);
+    let c2 = textureLoad(inputTexture, srcCoord + vec2u(0, 1), 0);
+    let c3 = textureLoad(inputTexture, srcCoord + vec2u(1, 1), 0);
+
+    let avg = (c0 + c1 + c2 + c3) * 0.25;
+
+    textureStore(outputTexture, id.xy, avg);
 }

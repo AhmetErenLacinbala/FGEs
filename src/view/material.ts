@@ -31,10 +31,10 @@ export default class Material {
             addressModeU: "repeat",
             addressModeV: "repeat",
             magFilter: "linear",
-            minFilter: "nearest",
-            mipmapFilter: "nearest",
-            maxAnisotropy: 1
+            minFilter: "linear",
+            mipmapFilter: "linear",
         };
+
         this.sampler = device.createSampler(samplerDescriptor);
 
         this.bindGroup = device.createBindGroup({
@@ -56,22 +56,28 @@ export default class Material {
     }
     async loadImageBitmap(device: GPUDevice, imageData: ImageBitmap) {
 
+        const mipLevelCount = Math.floor(Math.log2(Math.max(imageData.width, imageData.height))) + 1;
+
         const textureDescriptor: GPUTextureDescriptor = {
             size: {
                 width: imageData.width,
                 height: imageData.height
             },
             format: "rgba8unorm",
-            usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
-            //mipLevelCount: Math.floor(Math.log2(Math.max(imageData.width, imageData.height))) + 1,
-        }
+            usage: GPUTextureUsage.TEXTURE_BINDING |
+                GPUTextureUsage.COPY_DST |
+                GPUTextureUsage.STORAGE_BINDING | // Required for compute write
+                GPUTextureUsage.RENDER_ATTACHMENT,
+            mipLevelCount
+        };
+
         this.texture = device.createTexture(textureDescriptor);
+
         device.queue.copyExternalImageToTexture(
             { source: imageData },
-            { texture: this.texture },
-            textureDescriptor.size,
-
-        )
+            { texture: this.texture, mipLevel: 0 },
+            [imageData.width, imageData.height]
+        );
     }
     async initComputeShader(device: GPUDevice) {
         function log(...args: any[]) {
@@ -199,6 +205,50 @@ index     id           id        id
         globalReadBuffer.unmap();
     }
 
+    async generateMipmaps(device: GPUDevice) {
+        const module = device.createShaderModule({ code: await fetch('/mipmapComputerShader.wgsl').then(r => r.text()) });
+        const pipeline = device.createComputePipeline({
+            layout: "auto",
+            compute: { module, entryPoint: "main" }
+        });
+
+        const encoder = device.createCommandEncoder();
+        console.log(this.texture);
+        const baseWidth = this.texture.width;
+        const baseHeight = this.texture.height;
+        const mipLevels = Math.floor(Math.log2(Math.max(baseWidth, baseHeight)));
+
+        for (let level = 0; level < mipLevels; level++) {
+            const inView = this.texture.createView({
+                baseMipLevel: level,
+                mipLevelCount: 1,
+            });
+
+            const outView = this.texture.createView({
+                baseMipLevel: level + 1,
+                mipLevelCount: 1,
+            });
+
+            const bindGroup = device.createBindGroup({
+                layout: pipeline.getBindGroupLayout(0),
+                entries: [
+                    { binding: 0, resource: inView },
+                    { binding: 1, resource: outView }
+                ]
+            });
+
+            const pass = encoder.beginComputePass();
+            pass.setPipeline(pipeline);
+            pass.setBindGroup(0, bindGroup);
+
+            const width = Math.max(1, Math.floor(baseWidth / (2 ** (level + 1))));
+            const height = Math.max(1, Math.floor(baseHeight / (2 ** (level + 1))));
+            pass.dispatchWorkgroups(Math.ceil(width / 8), Math.ceil(height / 8));
+            pass.end();
+        }
+
+        device.queue.submit([encoder.finish()]);
+    }
 
 
 }

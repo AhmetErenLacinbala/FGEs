@@ -203,7 +203,7 @@ export default class Renderer {
         this.quadMesh = new QuadMesh(this.device);
 
         this.quadMaterial = new Material();
-        //await this.quadMaterial.initComputeShader(this.device);
+
 
         this.builder = new Builder();
         await this.builder.loadGLTF("models/flat_vase.glb");
@@ -224,6 +224,7 @@ export default class Renderer {
         this.objectBuffer = this.device.createBuffer(modelBufferDescriptor);
         await this.triangleMaterial.init(this.device, 'img/img.jpeg', this.materialGroupLayout);
         await this.quadMaterial.init(this.device, 'img/floor.jpg', this.materialGroupLayout);
+        await this.quadMaterial.generateMipmaps(this.device);
     }
 
     async render(renderObjects: RenderData) {
