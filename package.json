@@ -18,7 +18,7 @@
     "vite": "^6.1.0"
   },
   "dependencies": {
-    "@gltf-transform/core": "^4.1.2",
+    "@gltf-transform/core": "^4.2.1",
     "@gltf-transform/extensions": "^4.1.2",
     "@gltf-transform/functions": "^4.1.2",
     "@types/obj-file-parser": "^0.5.2",
