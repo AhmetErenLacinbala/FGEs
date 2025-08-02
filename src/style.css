@@ -11,6 +11,7 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
 }
 
 a {
@@ -18,12 +19,16 @@ a {
   color: #646cff;
   text-decoration: inherit;
 }
+
 a:hover {
   color: #535bf2;
 }
 
 body {
   margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: #242424;
 }
 
 h1 {
@@ -31,11 +36,15 @@ h1 {
   line-height: 1.1;
 }
 
-#compcheck {
-  max-width: 1280px;
+#app {
+  max-width: 800px;
   margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  padding: 1rem;
+}
+
+canvas {
+  display: block;
+  margin: 0 auto 20px auto;
 }
 
 .logo {
@@ -44,11 +53,13 @@ h1 {
   will-change: filter;
   transition: filter 300ms;
 }
+
 .logo:hover {
   filter: drop-shadow(0 0 2em #646cffaa);
 }
+
 .logo.vanilla:hover {
-  filter: drop-shadow(0 0 2em #3178c6aa);
+  filter: drop-shadow(0 0 2em #f7df1eaa);
 }
 
 .card {
@@ -67,12 +78,15 @@ button {
   font-weight: 500;
   font-family: inherit;
   background-color: #1a1a1a;
+  color: white;
   cursor: pointer;
   transition: border-color 0.25s;
 }
+
 button:hover {
   border-color: #646cff;
 }
+
 button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
@@ -83,10 +97,182 @@ button:focus-visible {
     color: #213547;
     background-color: #ffffff;
   }
+
   a:hover {
     color: #747bff;
   }
+
   button {
     background-color: #f9f9f9;
+    color: #213547;
   }
+}
+
+/* === TILE GENERATION STYLES === */
+
+.tile-panel {
+  background: #333;
+  border: 1px solid #555;
+  padding: 15px;
+  margin: 10px 0;
+  max-width: 600px;
+  margin: 10px auto;
+}
+
+.tile-panel h3 {
+  margin: 0 0 15px 0;
+  color: white;
+}
+
+.backend-status {
+  padding: 8px;
+  background: #444;
+  border: 1px solid #555;
+  margin: 10px 0;
+  font-size: 0.9em;
+}
+
+.coordinate-info {
+  margin: 10px 0;
+  padding: 8px;
+  background: #444;
+  font-size: 0.9em;
+  color: #ccc;
+}
+
+.coordinates-input {
+  margin: 15px 0;
+}
+
+.coordinate-row {
+  margin: 10px 0;
+}
+
+.coordinate-row label {
+  display: block;
+  margin: 5px 0;
+  color: #ccc;
+}
+
+.coordinate-row input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #555;
+  background: #222;
+  color: white;
+  box-sizing: border-box;
+}
+
+.actions {
+  margin: 15px 0;
+  text-align: center;
+}
+
+.actions button {
+  margin: 5px;
+  padding: 10px 15px;
+  border: 1px solid #666;
+  background: #555;
+  color: white;
+  cursor: pointer;
+}
+
+.fetch-btn {
+  background: #0066cc !important;
+}
+
+.fetch-btn:disabled {
+  background: #666 !important;
+  cursor: not-allowed;
+}
+
+.status {
+  padding: 10px;
+  margin: 10px 0;
+  background: #444;
+  border: 1px solid #555;
+  color: #ccc;
+}
+
+.status.loading {
+  background: #004080;
+  color: white;
+}
+
+.status.error {
+  background: #800000;
+  color: white;
+}
+
+.progress-container {
+  margin: 15px 0;
+  padding: 10px;
+  background: #444;
+  border: 1px solid #555;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 20px;
+  background: #222;
+  border: 1px solid #555;
+  margin: 10px 0;
+}
+
+.progress-fill {
+  height: 100%;
+  background: #0066cc;
+  width: 0%;
+}
+
+.progress-text {
+  color: #ccc;
+  margin: 5px 0;
+}
+
+.progress-percentage {
+  color: white;
+  text-align: right;
+}
+
+.results {
+  margin: 15px 0;
+  padding: 10px;
+  background: #444;
+  border: 1px solid #555;
+}
+
+.results h4 {
+  margin: 0 0 10px 0;
+  color: white;
+}
+
+.result-item {
+  margin: 5px 0;
+  color: #ccc;
+}
+
+.result-item strong {
+  color: white;
+}
+
+.result-item a {
+  color: #66ccff;
+  text-decoration: underline;
+}
+
+.cache-info {
+  margin: 15px 0;
+  padding: 10px;
+  background: #444;
+  border: 1px solid #555;
+}
+
+.cache-info h4 {
+  margin: 0 0 10px 0;
+  color: white;
+}
+
+.cache-stats {
+  color: #ccc;
 }
