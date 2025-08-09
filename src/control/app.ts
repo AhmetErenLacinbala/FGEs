@@ -1,6 +1,7 @@
 import Renderer from "../view/renderer";
 import Scene from "../model/scene";
 import $ from "jquery";
+import { vec3 } from "gl-matrix";
 
 export default class App {
 
@@ -40,6 +41,52 @@ export default class App {
 
     async init() {
         await this.renderer.init();
+    }
+
+    /**
+     * 🏔️ Create terrain from tile data (called from UI)
+     */
+    async createTerrainFromTile(tileData: any) {
+        try {
+            console.log('🎯 Creating terrain from tile data...');
+
+            // Calculate min/max safely for large arrays (don't use spread operator)
+            let heightMin = tileData.heightData[0];
+            let heightMax = tileData.heightData[0];
+            let heightSum = 0;
+
+            for (let i = 0; i < tileData.heightData.length; i++) {
+                const value = tileData.heightData[i];
+                if (value < heightMin) heightMin = value;
+                if (value > heightMax) heightMax = value;
+                heightSum += value;
+            }
+
+            console.log('📊 Tile data info:', {
+                width: tileData.width,
+                height: tileData.height,
+                heightDataLength: tileData.heightData.length,
+                centerCoords: tileData.centerCoordinates,
+                region: tileData.region,
+                heightMin: heightMin,
+                heightMax: heightMax,
+                heightAvg: heightSum / tileData.heightData.length
+            });
+
+            // Add terrain object to scene if not already present
+            // Position it slightly below ground level so it touches the surface
+            const terrainPosition = vec3.fromValues(0, -1, 0); // Slightly below ground
+            if (this.scene.terrain_count === 0) {
+                this.scene.addTerrain(terrainPosition);
+            }
+
+            // Generate the terrain mesh in the renderer with smaller scale
+            await this.renderer.generateTerrain(tileData);
+            console.log('✅ Terrain created and rendered successfully at position:', terrainPosition);
+
+        } catch (error) {
+            console.error('❌ Failed to create terrain from tile:', error);
+        }
     }
 
     run = () => {

@@ -2,7 +2,8 @@ import { mat4, vec3, vec2 } from "gl-matrix";
 
 export enum ObjectTypes {
     TRIANGLE,
-    QUAD
+    QUAD,
+    TERRAIN
 }
 
 export interface RenderData {

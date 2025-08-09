@@ -8,8 +8,11 @@ import { TileHeightmapData, TerrainTileRequest, ProcessingProgress } from '../ty
  */
 export class TileExample {
     private tileController: TileController;
+    private app: any; // Reference to main App for 3D terrain creation
 
-    constructor() {
+    constructor(app?: any) {
+        this.app = app;
+
         // Initialize the tile controller with callbacks
         this.tileController = new TileController('tile-ui', {
             onTileLoaded: this.handleTileLoaded.bind(this),
@@ -24,7 +27,7 @@ export class TileExample {
     /**
      * Callback when tile data is loaded from backend
      */
-    private handleTileLoaded(data: TileHeightmapData): void {
+    private async handleTileLoaded(data: TileHeightmapData): Promise<void> {
         // Calculate height range efficiently
         let minHeight = data.heightData[0];
         let maxHeight = data.heightData[0];
@@ -48,6 +51,16 @@ export class TileExample {
             etag: data.etag,
             dataPoints: data.heightData.length
         });
+
+        // 🎯 Create 3D terrain from the generated tile
+        if (this.app && this.app.createTerrainFromTile) {
+            try {
+                console.log('🏔️ Creating 3D terrain from generated tile...');
+                await this.app.createTerrainFromTile(data);
+            } catch (error) {
+                console.error('❌ Failed to create 3D terrain:', error);
+            }
+        }
 
         // 🎯 This is where you can integrate the tile with your WebGPU renderer
         this.createWebGPUTileMesh(data);
@@ -88,7 +101,7 @@ export class TileExample {
         }
 
         console.log('🎯 TileExample initialized with working backend integration');
-        console.log('💡 Ready to generate terrain tiles from center coordinates');
+        console.log('💡 Click "Generate Tile" button to create terrain in 3D scene');
     }
 
     /**
@@ -198,6 +211,6 @@ export class TileExample {
 /**
  * Initialize the tile integration system
  */
-export function initializeTileIntegration(): TileExample {
-    return new TileExample();
+export function initializeTileIntegration(app?: any): TileExample {
+    return new TileExample(app);
 } 

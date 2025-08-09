@@ -3,7 +3,8 @@ import shader from './shaders.wgsl?raw'
 import { TriangleMesh } from './triangle_mesh';
 import { mat4 } from 'gl-matrix'
 import { ObjectTypes, RenderData } from '../model/definitions';
-import QuadMesh from './quadMesh';
+//import QuadMesh from './quadMesh';
+import TerrainMesh from './terrainMesh';
 //import ObjMesh from './objMesh';
 import Builder from '../model/builder';
 import Model from '../model/model';
@@ -30,15 +31,18 @@ export default class Renderer {
 
 
     triangleMesh!: TriangleMesh;
-    quadMesh!: QuadMesh;
+    //quadMesh!: QuadMesh;
+    terrainMesh!: TerrainMesh;
     //statueMesh!: ObjMesh;
     model!: Model;
 
     triangleMaterial!: Material;
     quadMaterial!: Material;
+    terrainMaterial!: Material;
     objectBuffer!: GPUBuffer;
 
     builder!: Builder;
+    terrainBuilder!: Builder;
 
 
     constructor(canvas: HTMLCanvasElement) {
@@ -200,14 +204,19 @@ export default class Renderer {
         this.triangleMesh = new TriangleMesh(this.device);
         this.triangleMaterial = new Material();
 
-        this.quadMesh = new QuadMesh(this.device);
-
+        //this.quadMesh = new QuadMesh(this.device);
         this.quadMaterial = new Material();
 
+        // Create terrain mesh and material
+        this.terrainMesh = new TerrainMesh(this.device);
+        this.terrainMaterial = new Material();
 
         this.builder = new Builder();
         await this.builder.loadGLTF("models/flat_vase.glb");
         this.model = new Model(this.device, this.builder);
+
+        // Create separate builder for terrain
+        this.terrainBuilder = new Builder();
 
         //this.statueMesh = new ObjMesh();
         //await this.statueMesh.init(this.device, 'models/statue.obj');
@@ -225,6 +234,53 @@ export default class Renderer {
         await this.triangleMaterial.init(this.device, 'img/img.jpeg', this.materialGroupLayout);
         await this.quadMaterial.init(this.device, 'img/floor.jpg', this.materialGroupLayout);
         await this.quadMaterial.generateMipmaps(this.device);
+
+        // Initialize terrain material with existing texture (reuse floor texture for now)
+        await this.terrainMaterial.init(this.device, 'img/floor.jpg', this.materialGroupLayout);
+        await this.terrainMaterial.generateMipmaps(this.device);
+    }
+
+    /**
+     * 🏔️ Generate terrain from tile data
+     */
+    async generateTerrain(tileData: any) {
+        try {
+            console.log('🏔️ Generating terrain mesh from tile data...');
+
+            // Use terrain builder to populate terrain data with appropriate scale for visibility
+            const worldScale = 1.0; // Much smaller scale since we adjusted height calculation
+            const success = this.terrainBuilder.populateTerrainFromTile(tileData, worldScale);
+
+            if (!success) {
+                console.error('❌ Failed to populate terrain data');
+                return;
+            }
+
+            console.log('📊 Terrain builder stats:', {
+                vertexCount: this.terrainBuilder.vertexCount,
+                indexCount: this.terrainBuilder.indexCount,
+                worldScale: worldScale
+            });
+
+            // Get vertex and index data from builder
+            const vertices = this.terrainBuilder.getFlattenedVertices();
+            const indices = this.terrainBuilder.getIndexArray();
+
+            console.log('📊 Mesh data:', {
+                vertexArrayLength: vertices.length,
+                indexArrayLength: indices.length,
+                vertexFloatsPerVertex: vertices.length / this.terrainBuilder.vertexCount,
+                firstFewVertices: Array.from(vertices.slice(0, 15)) // position(3) + uv(2) for first 3 vertices
+            });
+
+            // Update terrain mesh with new data
+            this.terrainMesh.updateTerrain(this.device, vertices, indices);
+
+            console.log('✅ Terrain mesh generated successfully with scale:', worldScale);
+
+        } catch (error) {
+            console.error('❌ Error generating terrain mesh:', error);
+        }
     }
 
     async render(renderObjects: RenderData) {
@@ -273,11 +329,19 @@ export default class Renderer {
         objectsDrawn += renderObjects.objectCounts[ObjectTypes.TRIANGLE];
 
         //quads
-        renderpass.setVertexBuffer(0, this.quadMesh.buffer);
+        /*renderpass.setVertexBuffer(0, this.quadMesh.buffer);
         renderpass.setBindGroup(1, this.quadMaterial.bindGroup);
         renderpass.draw(6, renderObjects.objectCounts[ObjectTypes.QUAD], 0, objectsDrawn);
-        objectsDrawn += renderObjects.objectCounts[ObjectTypes.QUAD];
+        objectsDrawn += renderObjects.objectCounts[ObjectTypes.QUAD];*/
 
+        // Render terrain if it has data
+        if (this.terrainMesh.hasData() && renderObjects.objectCounts[ObjectTypes.TERRAIN] > 0) {
+            renderpass.setVertexBuffer(0, this.terrainMesh.vertexBuffer);
+            renderpass.setIndexBuffer(this.terrainMesh.indexBuffer, 'uint32');
+            renderpass.setBindGroup(1, this.terrainMaterial.bindGroup);
+            renderpass.drawIndexed(this.terrainMesh.indexCount, renderObjects.objectCounts[ObjectTypes.TERRAIN], 0, 0, objectsDrawn);
+            objectsDrawn += renderObjects.objectCounts[ObjectTypes.TERRAIN];
+        }
 
         this.model.bind(renderpass);
         renderpass.setBindGroup(1, this.triangleMaterial.bindGroup);

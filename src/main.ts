@@ -10,8 +10,8 @@ const canvas: HTMLCanvasElement | null = document.getElementById('gfx-main') as 
     await app.init();
     app.run();
 
-    // Initialize the tile generation system
-    const tileExample = initializeTileIntegration();
+    // Initialize the tile generation system with app reference for 3D terrain
+    const tileExample = initializeTileIntegration(app);
 
     console.log('🎯 Application initialized with tile generation system');
     console.log('📋 Available tile generation methods:');
@@ -21,6 +21,8 @@ const canvas: HTMLCanvasElement | null = document.getElementById('gfx-main') as 
     console.log('    - Cache: Call tileExample.getTileFromCache(request)');
     console.log('    - Grid: Call tileExample.generateTileGrid(lat, lng, size)');
     console.log('    - Stats: Call tileExample.getTileStats()');
+    console.log('');
+    console.log('🏔️ 3D Terrain: Click "Generate Tile" to create terrain in the 3D scene!');
 
     // Expose tileExample globally for debugging
     (window as any).tileExample = tileExample;

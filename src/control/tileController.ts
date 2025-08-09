@@ -161,19 +161,19 @@ export class TileController {
   }
 
   private setupEventListeners(): void {
-    // Generate tile button
+
     const generateBtn = document.getElementById('generate-tile') as HTMLButtonElement;
     generateBtn?.addEventListener('click', () => this.generateTile());
 
-    // Clear cache button
+
     const clearCacheBtn = document.getElementById('clear-tile-cache') as HTMLButtonElement;
     clearCacheBtn?.addEventListener('click', () => this.clearCache());
 
-    // Test backend button
+
     const testBtn = document.getElementById('test-tile-backend') as HTMLButtonElement;
     testBtn?.addEventListener('click', () => this.testBackend());
 
-    // Update cache info immediately
+
     this.updateCacheInfo();
   }
 
@@ -193,13 +193,13 @@ export class TileController {
 
       const data = await this.terrainService.generateTile(request);
 
-      // Update UI with results
+
       this.displayTileResults(data);
 
-      // Update cache info
+
       this.updateCacheInfo();
 
-      // Call callback
+
       if (this.callbacks.onTileLoaded) {
         this.callbacks.onTileLoaded(data);
       }
@@ -221,7 +221,7 @@ export class TileController {
   }
 
   private displayTileResults(data: TileHeightmapData): void {
-    // Calculate height range efficiently
+
     let minHeight = data.heightData[0];
     let maxHeight = data.heightData[0];
 
@@ -231,7 +231,7 @@ export class TileController {
       if (value > maxHeight) maxHeight = value;
     }
 
-    // Update result elements
+
     const elements = {
       filename: document.getElementById('tile-result-filename'),
       center: document.getElementById('tile-result-center'),
@@ -258,7 +258,7 @@ export class TileController {
       elements.url.textContent = 'Download TIF';
     }
 
-    // Show results
+
     const resultsElement = document.getElementById('tile-results');
     if (resultsElement) {
       resultsElement.style.display = 'block';
@@ -308,7 +308,7 @@ export class TileController {
       percentageElement.textContent = `${progress.progress}%`;
     }
 
-    // Update step indicators
+
     if (stepProcessing && stepDownloading) {
       stepProcessing.className = progress.step === 'processing' ? 'step active' : 'step completed';
       stepDownloading.className = progress.step === 'downloading' ? 'step active' : 'step';
