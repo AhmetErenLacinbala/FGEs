@@ -276,3 +276,130 @@ button:focus-visible {
 .cache-stats {
   color: #ccc;
 }
+
+/* === TERRAIN STREAMING STATUS STYLES === */
+
+.status-panel {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  width: 320px;
+  background: rgba(42, 42, 42, 0.95);
+  border: 1px solid #555;
+  border-radius: 8px;
+  padding: 15px;
+  color: white;
+  font-size: 0.9em;
+  backdrop-filter: blur(5px);
+  z-index: 1000;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.status-panel h3 {
+  margin: 0 0 15px 0;
+  color: #4CAF50;
+  font-size: 1.1em;
+  text-align: center;
+  border-bottom: 1px solid #555;
+  padding-bottom: 8px;
+}
+
+.status-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 8px 0;
+  padding: 5px 0;
+}
+
+.status-label {
+  color: #ccc;
+  font-weight: 500;
+  min-width: 120px;
+}
+
+.status-value {
+  color: white;
+  font-weight: bold;
+  text-align: right;
+  font-family: 'Courier New', monospace;
+}
+
+.status-value.online {
+  color: #4CAF50;
+}
+
+.status-value.offline {
+  color: #f44336;
+}
+
+.status-value.warning {
+  color: #ff9800;
+}
+
+.status-value.active {
+  color: #2196F3;
+}
+
+.process-log {
+  margin-top: 15px;
+  border-top: 1px solid #555;
+  padding-top: 10px;
+}
+
+.process-log h4 {
+  margin: 0 0 10px 0;
+  color: #ccc;
+  font-size: 0.9em;
+}
+
+.log-content {
+  max-height: 200px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 8px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.8em;
+}
+
+.log-entry {
+  margin: 2px 0;
+  padding: 2px 0;
+  color: #ddd;
+}
+
+.log-entry.success {
+  color: #4CAF50;
+}
+
+.log-entry.error {
+  color: #f44336;
+}
+
+.log-entry.info {
+  color: #2196F3;
+}
+
+.log-entry.warning {
+  color: #ff9800;
+}
+
+.log-timestamp {
+  color: #666;
+  font-size: 0.9em;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .status-panel {
+    position: relative;
+    top: auto;
+    right: auto;
+    width: 100%;
+    margin: 10px auto;
+    max-width: 400px;
+  }
+}

@@ -17,6 +17,11 @@ export default class App {
     rightAmount: number;
     upAmount: number;
 
+    // Terrain streaming
+    terrainStreamingActive: boolean = false;
+    currentPlayerGeoPosition: { lat: number; lng: number } = { lat: 40.7128, lng: -74.0060 }; // NYC default
+    statusLogCallback?: (message: string, type: 'info' | 'success' | 'error' | 'warning') => void;
+
     constructor(canvas: HTMLCanvasElement) {
         this.canvas = canvas;
         this.renderer = new Renderer(canvas);
@@ -89,10 +94,64 @@ export default class App {
         }
     }
 
+    /**
+ * 🌍 Initialize terrain streaming system
+ */
+    async initializeTerrainStreaming(lat: number = 40.7128, lng: number = -74.0060): Promise<void> {
+        try {
+            console.log(`🌍 Initializing terrain streaming at ${lat}, ${lng}`);
+            this.statusLogCallback?.(`🌍 Starting terrain streaming at ${lat.toFixed(4)}, ${lng.toFixed(4)}`, 'info');
+
+            this.currentPlayerGeoPosition = { lat, lng };
+
+            // Start terrain streaming at the specified location
+            await this.renderer.startTerrainStreaming(lat, lng);
+
+            this.terrainStreamingActive = true;
+            this.statusLogCallback?.('✅ Terrain streaming initialized and active', 'success');
+            console.log('✅ Terrain streaming initialized and active');
+
+        } catch (error) {
+            this.statusLogCallback?.('❌ Failed to initialize terrain streaming', 'error');
+            console.error('❌ Failed to initialize terrain streaming:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 🎮 Update player geographic position for terrain streaming
+     */
+    async updatePlayerGeoPosition(deltaLat: number, deltaLng: number): Promise<void> {
+        if (!this.terrainStreamingActive) return;
+
+        this.currentPlayerGeoPosition.lat += deltaLat;
+        this.currentPlayerGeoPosition.lng += deltaLng;
+
+        // Update terrain manager with new position
+        await this.renderer.updateTerrainPlayerPosition(
+            this.currentPlayerGeoPosition.lat,
+            this.currentPlayerGeoPosition.lng
+        );
+    }
+
     run = () => {
         let running: boolean = true;
         this.scene.update();
         this.scene.movePlayer(this.forwardsAmount, this.rightAmount, this.upAmount);
+
+        // Update terrain based on player movement (simulate geographic movement)
+        if (this.terrainStreamingActive) {
+            // Convert world movement to approximate geographic movement
+            // This is a simple simulation - in a real app you'd have proper coordinate conversion
+            const geoMovementScale = 0.00001; // Very small movements for demo
+            const deltaLat = this.forwardsAmount * geoMovementScale;
+            const deltaLng = this.rightAmount * geoMovementScale;
+
+            if (Math.abs(deltaLat) > 0 || Math.abs(deltaLng) > 0) {
+                this.updatePlayerGeoPosition(deltaLat, deltaLng);
+            }
+        }
+
         this.renderer.render(this.scene.getObjects());
         //console.log(this.scene.getObjects());
         if (running) {

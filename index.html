@@ -15,6 +15,43 @@
   </div>
   <div id="compcheck"></div>
 
+  <!-- Terrain Streaming Status Display -->
+  <div id="terrain-status" class="status-panel">
+    <h3>🌍 Terrain Streaming Status</h3>
+    <div id="connection-status" class="status-item">
+      <span class="status-label">Backend:</span>
+      <span id="backend-status" class="status-value">Checking...</span>
+    </div>
+    <div id="streaming-status" class="status-item">
+      <span class="status-label">Streaming:</span>
+      <span id="streaming-active" class="status-value">Disabled</span>
+    </div>
+    <div id="tiles-status" class="status-item">
+      <span class="status-label">Tiles Loaded:</span>
+      <span id="tiles-count" class="status-value">0</span>
+    </div>
+    <div id="workers-status" class="status-item">
+      <span class="status-label">Workers:</span>
+      <span id="workers-active" class="status-value">0/0</span>
+    </div>
+    <div id="memory-status" class="status-item">
+      <span class="status-label">GPU Memory:</span>
+      <span id="memory-usage" class="status-value">0 MB</span>
+    </div>
+    <div id="current-location" class="status-item">
+      <span class="status-label">Location:</span>
+      <span id="player-coords" class="status-value">40.7128, -74.0060</span>
+    </div>
+    <div id="loading-queue" class="status-item">
+      <span class="status-label">Loading Queue:</span>
+      <span id="queue-size" class="status-value">0</span>
+    </div>
+    <div id="process-log" class="process-log">
+      <h4>Process Log:</h4>
+      <div id="log-content" class="log-content"></div>
+    </div>
+  </div>
+
   <canvas id="gfx-main" width="800" height="600"></canvas>
   <h2>Key: <span id="keyboardKey"></span></h2>
   <h2>Mouse X: <span id="mousex"></span></h2>

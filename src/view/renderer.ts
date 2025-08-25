@@ -1,5 +1,6 @@
 import Material from './material';
-import shader from './shaders.wgsl?raw'
+import basicShader from './basicShaders.wgsl?raw'
+import terrainShader from './terrainShaders.wgsl?raw'
 import { TriangleMesh } from './triangle_mesh';
 import { mat4 } from 'gl-matrix'
 import { ObjectTypes, RenderData } from '../model/definitions';
@@ -8,6 +9,8 @@ import TerrainMesh from './terrainMesh';
 //import ObjMesh from './objMesh';
 import Builder from '../model/builder';
 import Model from '../model/model';
+import { WebGPUTerrainManager } from '../control/webGPUTerrainManager';
+import { TerrainTile } from '../types/terrainStreaming';
 
 export default class Renderer {
     canvas: HTMLCanvasElement;
@@ -19,6 +22,7 @@ export default class Renderer {
 
     uniformBuffer!: GPUBuffer
     pipeline!: GPURenderPipeline;
+    terrainPipeline!: GPURenderPipeline;
     frameGroupLayout!: GPUBindGroupLayout;
     materialGroupLayout!: GPUBindGroupLayout;
     frameBindGroup!: GPUBindGroup;
@@ -44,6 +48,9 @@ export default class Renderer {
     builder!: Builder;
     terrainBuilder!: Builder;
 
+    // Terrain streaming system
+    terrainManager!: WebGPUTerrainManager;
+    streamingEnabled: boolean = false;
 
     constructor(canvas: HTMLCanvasElement) {
         this.canvas = canvas
@@ -62,6 +69,9 @@ export default class Renderer {
         await this.setupPipeline();
 
         await this.setupBindGroup();
+
+        // Initialize terrain streaming system
+        await this.initializeTerrainStreaming();
 
     }
 
@@ -172,6 +182,7 @@ export default class Renderer {
         });
 
 
+        // Create pipeline for triangles and other basic geometry
         this.pipeline = this.device.createRenderPipeline(
             {
                 layout: pipelineLayout,
@@ -179,16 +190,44 @@ export default class Renderer {
                 {
                     module: this.device.createShaderModule(
                         {
-                            code: shader
+                            code: basicShader
                         }),
                     entryPoint: "vs_main",
-                    buffers: [this.triangleMesh.bufferLayout]
+                    buffers: [this.triangleMesh.bufferLayout] // Use triangle layout for basic geometry
                 },
                 fragment:
                 {
                     module: this.device.createShaderModule(
                         {
-                            code: shader
+                            code: basicShader
+                        }),
+                    entryPoint: "fs_main",
+                    targets: [{ format: this.format }]
+                },
+                primitive: {
+                    topology: 'triangle-list',
+                },
+                depthStencil: this.depthStencilState
+            });
+
+        // Create separate pipeline for terrain with different vertex layout
+        this.terrainPipeline = this.device.createRenderPipeline(
+            {
+                layout: pipelineLayout,
+                vertex:
+                {
+                    module: this.device.createShaderModule(
+                        {
+                            code: terrainShader
+                        }),
+                    entryPoint: "vs_main",
+                    buffers: [this.terrainMesh.bufferLayout] // Use terrain layout for streaming terrain
+                },
+                fragment:
+                {
+                    module: this.device.createShaderModule(
+                        {
+                            code: terrainShader
                         }),
                     entryPoint: "fs_main",
                     targets: [{ format: this.format }]
@@ -334,14 +373,17 @@ export default class Renderer {
         renderpass.draw(6, renderObjects.objectCounts[ObjectTypes.QUAD], 0, objectsDrawn);
         objectsDrawn += renderObjects.objectCounts[ObjectTypes.QUAD];*/
 
-        // Render terrain if it has data
-        if (this.terrainMesh.hasData() && renderObjects.objectCounts[ObjectTypes.TERRAIN] > 0) {
+        // Render terrain if it has data (legacy single tile)
+        if (this.terrainMesh.hasData() && renderObjects.objectCounts[ObjectTypes.TERRAIN] > 0 && !this.streamingEnabled) {
             renderpass.setVertexBuffer(0, this.terrainMesh.vertexBuffer);
             renderpass.setIndexBuffer(this.terrainMesh.indexBuffer, 'uint32');
             renderpass.setBindGroup(1, this.terrainMaterial.bindGroup);
             renderpass.drawIndexed(this.terrainMesh.indexCount, renderObjects.objectCounts[ObjectTypes.TERRAIN], 0, 0, objectsDrawn);
             objectsDrawn += renderObjects.objectCounts[ObjectTypes.TERRAIN];
         }
+
+        // Render streaming terrain tiles (with terrain pipeline)
+        objectsDrawn = this.renderStreamingTerrain(renderpass, objectsDrawn);
 
         this.model.bind(renderpass);
         renderpass.setBindGroup(1, this.triangleMaterial.bindGroup);
@@ -368,5 +410,174 @@ export default class Renderer {
                 }
             ]
         })
+    }
+
+    /**
+     * 🌍 Initialize terrain streaming system
+     */
+    async initializeTerrainStreaming(): Promise<void> {
+        console.log('🌍 Initializing terrain streaming system...');
+
+        try {
+            // Create terrain manager with configuration optimized for 9-tile grid
+            this.terrainManager = new WebGPUTerrainManager(this.device, {
+                tileMeshResolution: 64, // Even lower resolution for faster loading
+                maxTilesInMemory: 25,
+                preloadDistance: 1, // Smaller preload distance
+                baseUrl: 'http://localhost:3000',
+                defaultScale: 30,
+                meshGenerationWorkers: 2 // Re-enable workers with JS version
+            });
+
+            // Initialize the manager
+            await this.terrainManager.initialize();
+
+            // Set up event handlers
+            this.terrainManager.on('onTileLoaded', (tile: TerrainTile) => {
+                console.log(`🎯 Tile loaded: ${tile.tileId}`);
+            });
+
+            this.terrainManager.on('onError', (error) => {
+                console.error('🚨 Terrain error:', error);
+            });
+
+            console.log('✅ Terrain streaming system initialized');
+
+        } catch (error) {
+            console.error('❌ Failed to initialize terrain streaming:', error);
+        }
+    }
+
+    /**
+     * 🚀 Start terrain streaming at specified location
+     */
+    async startTerrainStreaming(spawnLat: number, spawnLng: number): Promise<void> {
+        if (!this.terrainManager) {
+            console.error('❌ Terrain manager not initialized');
+            return;
+        }
+
+        try {
+            console.log(`🚀 Starting terrain streaming at ${spawnLat}, ${spawnLng}`);
+
+            // Load initial grid
+            await this.terrainManager.loadInitialGrid(spawnLat, spawnLng, 1); // 1 tile radius = 3x3 grid (9 tiles)
+
+            this.streamingEnabled = true;
+            console.log('✅ Terrain streaming started');
+
+        } catch (error) {
+            console.error('❌ Failed to start terrain streaming:', error);
+        }
+    }
+
+    /**
+     * 🎮 Update player position for terrain streaming
+     */
+    async updateTerrainPlayerPosition(lat: number, lng: number): Promise<void> {
+        if (this.terrainManager && this.streamingEnabled) {
+            await this.terrainManager.updatePlayerPosition(lat, lng);
+        }
+    }
+
+    /**
+ * 🎬 Render streaming terrain tiles
+ */
+    renderStreamingTerrain(renderpass: GPURenderPassEncoder, objectsDrawn: number): number {
+        if (!this.terrainManager || !this.streamingEnabled) {
+            return objectsDrawn;
+        }
+
+        // Get visible tiles
+        const visibleTiles = this.terrainManager.getVisibleTiles();
+
+        if (visibleTiles.length === 0) {
+            return objectsDrawn;
+        }
+
+        // Create model matrices for terrain tiles with rotation
+        const terrainModelMatrices: Float32Array[] = [];
+        for (const tile of visibleTiles) {
+            if (tile.vertexBuffer && tile.indexBuffer && tile.meshData) {
+                // Create model matrix for this tile
+                const modelMatrix = mat4.create();
+                mat4.identity(modelMatrix);
+
+                // Apply transformations to create a flat 3x3 grid on the ground
+                const tileSize = 6.4; // Based on terrainScale (0.1) * resolution (64)
+
+                // Simple grid positioning: arrange tiles relative to each other
+                // For a 3x3 grid, tiles should be at positions: -1, 0, 1 in both X and Z
+                const gridIndex = visibleTiles.indexOf(tile);
+                const gridX = (gridIndex % 3) - 1; // -1, 0, 1
+                const gridZ = Math.floor(gridIndex / 3) - 1; // -1, 0, 1
+
+                const posX = gridX * tileSize;
+                const posY = 0; // Keep on ground level
+                const posZ = gridZ * tileSize;
+
+                // Just translate to grid position - no rotation needed if worker generates correct orientation
+                mat4.translate(modelMatrix, modelMatrix, [posX, posY, posZ]);
+
+                terrainModelMatrices.push(new Float32Array(modelMatrix));
+            }
+        }
+
+        // Update object buffer with terrain model matrices
+        if (terrainModelMatrices.length > 0) {
+            const terrainMatrixData = new Float32Array(terrainModelMatrices.length * 16);
+            for (let i = 0; i < terrainModelMatrices.length; i++) {
+                terrainMatrixData.set(terrainModelMatrices[i], i * 16);
+            }
+
+            // Write terrain matrices starting after existing objects
+            this.device.queue.writeBuffer(
+                this.objectBuffer,
+                objectsDrawn * 16 * 4, // offset: 16 floats * 4 bytes per float * objectsDrawn
+                terrainMatrixData
+            );
+        }
+
+        // Switch to terrain pipeline for proper vertex layout
+        renderpass.setPipeline(this.terrainPipeline);
+        renderpass.setBindGroup(0, this.frameBindGroup);
+
+        // Render each tile
+        for (const tile of visibleTiles) {
+            if (tile.vertexBuffer && tile.indexBuffer && tile.meshData) {
+                // Set vertex and index buffers for this tile
+                renderpass.setVertexBuffer(0, tile.vertexBuffer);
+                renderpass.setIndexBuffer(tile.indexBuffer, 'uint32');
+                renderpass.setBindGroup(1, this.terrainMaterial.bindGroup);
+
+                // Draw this tile with its model matrix
+                renderpass.drawIndexed(
+                    tile.meshData.indexCount,  // indexCount
+                    1,                         // instanceCount
+                    0,                         // firstIndex
+                    0,                         // baseVertex
+                    objectsDrawn               // firstInstance (points to terrain matrix)
+                );
+
+                objectsDrawn++; // Increment for each tile
+            }
+        }
+
+        // Switch back to regular pipeline for other objects
+        renderpass.setPipeline(this.pipeline);
+        renderpass.setBindGroup(0, this.frameBindGroup);
+
+        return objectsDrawn;
+    }
+
+    /**
+     * 📊 Get terrain streaming statistics
+     */
+    getTerrainStats(): any {
+        if (!this.terrainManager) {
+            return null;
+        }
+
+        return this.terrainManager.getMemoryStats();
     }
 }

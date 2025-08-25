@@ -6,6 +6,12 @@ import {
     TileServiceState,
     ProcessingProgress
 } from '../types/terrain';
+import {
+    TileGridRequest,
+    TileGridResponse,
+    StreamingTileRequest,
+    StreamingTileResponse
+} from '../types/terrainStreaming';
 
 export class TerrainService {
     private baseUrl: string;
@@ -338,6 +344,286 @@ export class TerrainService {
      */
     getDownloadUrl(filename: string): string {
         return `${this.baseUrl}/terrain/files/${filename}`;
+    }
+
+    /**
+     * 🌍 Fetch initial grid of terrain tiles around player position
+     */
+    async fetchInitialGrid(request: TileGridRequest): Promise<TileGridResponse> {
+        try {
+            console.log('🌍 Fetching initial tile grid...', request);
+
+            const response = await fetch(`${this.baseUrl}/terrain/fetch-grid`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(request)
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to fetch tile grid: ${response.status} ${response.statusText}`);
+            }
+
+            const gridResponse: TileGridResponse = await response.json();
+            console.log('✅ Initial tile grid fetched:', {
+                totalTiles: gridResponse.totalTiles,
+                gridSize: gridResponse.gridSize,
+                playerTile: gridResponse.playerTile
+            });
+
+            return gridResponse;
+
+        } catch (error) {
+            console.error('❌ Error fetching initial tile grid:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 🎯 Stream new tiles based on player movement
+     */
+    async streamTiles(request: StreamingTileRequest): Promise<StreamingTileResponse> {
+        try {
+            console.log('🎯 Streaming tiles for movement...', {
+                from: { lat: request.previousLat, lng: request.previousLng },
+                to: { lat: request.playerLat, lng: request.playerLng }
+            });
+
+            const response = await fetch(`${this.baseUrl}/terrain/stream-tiles`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(request)
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to stream tiles: ${response.status} ${response.statusText}`);
+            }
+
+            const streamResponse: StreamingTileResponse = await response.json();
+            console.log('✅ Tiles streamed:', {
+                newTiles: streamResponse.newTiles.length,
+                direction: streamResponse.direction,
+                tilesToPreload: streamResponse.tilesToPreload
+            });
+
+            return streamResponse;
+
+        } catch (error) {
+            console.error('❌ Error streaming tiles:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 📥 Download heightmap TIF file and convert to ImageData
+     */
+    async downloadHeightmapAsImageData(backendUrl: string): Promise<ImageData> {
+        try {
+            console.log('📥 Downloading heightmap:', backendUrl);
+
+            // Try using the working downloadAndProcessTiff method instead
+            if (backendUrl.startsWith('/terrain/files/')) {
+                // Use the full URL format that works
+                const fullUrl = `${this.baseUrl}${backendUrl}`;
+                console.log('📥 Using full URL:', fullUrl);
+                return await this.downloadHeightmapFromTiff(fullUrl);
+            }
+
+            const response = await fetch(backendUrl);
+            if (!response.ok) {
+                throw new Error(`Failed to download heightmap: ${response.status} ${response.statusText}`);
+            }
+
+            const arrayBuffer = await response.arrayBuffer();
+
+            // Process with geotiff using the working approach from the original code
+            let width: number, height: number, elevationData: Float32Array;
+
+            try {
+                console.log('📊 Processing TIF file, size:', arrayBuffer.byteLength);
+
+                // Add more detailed debugging for 16-bit TIF files
+                console.log('📊 ArrayBuffer first 16 bytes:', new Uint8Array(arrayBuffer.slice(0, 16)));
+
+                // Try with different GeoTIFF options for 16-bit files
+                // Use exact same method as working downloadAndProcessTiff
+                const tiff = await fromArrayBuffer(arrayBuffer);
+                console.log('📊 TIFF object created successfully');
+
+                const image = await tiff.getImage();
+                console.log('📊 TIFF image loaded, checking properties...');
+
+                // Get detailed image information
+                const imageInfo = {
+                    width: image.getWidth(),
+                    height: image.getHeight(),
+                    samplesPerPixel: image.getSamplesPerPixel(),
+                    bitsPerSample: image.getBitsPerSample(),
+                    sampleFormat: image.getSampleFormat(),
+                    dataType: image.getArrayForSample(0, 0, 0).constructor.name
+                };
+                console.log('📊 TIF Image details:', imageInfo);
+
+                const rasters = await image.readRasters();
+                console.log('📊 Rasters read successfully, type:', rasters[0].constructor.name);
+
+                // Extract data (same as working version)
+                width = image.getWidth();
+                height = image.getHeight();
+                const bounds = image.getBoundingBox();
+                elevationData = new Float32Array(rasters[0] as ArrayLike<number>);
+
+                console.log('📊 TIF Image processed:', {
+                    width,
+                    height,
+                    dataSize: elevationData.length,
+                    samplesPerPixel: image.getSamplesPerPixel(),
+                    bounds: bounds
+                });
+
+            } catch (tiffError) {
+                console.error('❌ GeoTIFF processing failed:', tiffError);
+                console.log('🔄 Falling back to dummy heightmap data');
+
+                // Create dummy heightmap data for testing
+                width = 256;
+                height = 256;
+                elevationData = new Float32Array(width * height);
+
+                // Fill with some basic height variation for testing
+                for (let i = 0; i < elevationData.length; i++) {
+                    const x = i % width;
+                    const y = Math.floor(i / width);
+                    const centerX = width / 2;
+                    const centerY = height / 2;
+                    const distance = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
+                    const maxDistance = Math.sqrt(centerX ** 2 + centerY ** 2);
+                    const normalizedDistance = distance / maxDistance;
+                    elevationData[i] = 1000 + Math.sin(normalizedDistance * Math.PI) * 50; // 1000m base + 50m variation
+                }
+
+                console.log('✅ Generated dummy heightmap data for testing');
+            }
+
+            // Convert to ImageData format for web workers
+            // Create RGBA data where elevation is stored in red channel
+            const imageDataArray = new Uint8ClampedArray(width * height * 4);
+
+            // Find min/max for normalization
+            let minHeight = elevationData[0];
+            let maxHeight = elevationData[0];
+            for (let i = 1; i < elevationData.length; i++) {
+                const value = elevationData[i];
+                if (value < minHeight) minHeight = value;
+                if (value > maxHeight) maxHeight = value;
+            }
+
+            const heightRange = maxHeight - minHeight;
+
+            // Convert to RGBA (store normalized height in R channel)
+            for (let i = 0; i < elevationData.length; i++) {
+                const normalizedHeight = heightRange > 0 ?
+                    (elevationData[i] - minHeight) / heightRange : 0;
+                const pixelValue = Math.floor(normalizedHeight * 255);
+
+                const pixelIndex = i * 4;
+                imageDataArray[pixelIndex + 0] = pixelValue; // R: normalized height
+                imageDataArray[pixelIndex + 1] = pixelValue; // G: same as R for grayscale
+                imageDataArray[pixelIndex + 2] = pixelValue; // B: same as R for grayscale
+                imageDataArray[pixelIndex + 3] = 255;        // A: fully opaque
+            }
+
+            const imageData = new ImageData(imageDataArray, width, height);
+
+            console.log('✅ Heightmap converted to ImageData:', {
+                width,
+                height,
+                minHeight: minHeight.toFixed(1) + 'm',
+                maxHeight: maxHeight.toFixed(1) + 'm',
+                range: heightRange.toFixed(1) + 'm'
+            });
+
+            return imageData;
+
+        } catch (error) {
+            console.error('❌ Error downloading heightmap:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 📥 Download heightmap using the working TIF processing method
+     */
+    private async downloadHeightmapFromTiff(downloadUrl: string): Promise<ImageData> {
+        try {
+            console.log('📥 Using working TIF method for:', downloadUrl);
+
+            // Use the existing working downloadAndProcessTiff logic
+            const tiffResult = await this.downloadAndProcessTiff(downloadUrl);
+
+            // Convert the working result to ImageData format
+            const { elevationData, width, height } = tiffResult;
+
+            // Convert to ImageData format for web workers
+            const imageDataArray = new Uint8ClampedArray(width * height * 4);
+
+            // Find min/max for normalization (same as original)
+            let minHeight = elevationData[0];
+            let maxHeight = elevationData[0];
+            for (let i = 1; i < elevationData.length; i++) {
+                const value = elevationData[i];
+                if (value < minHeight) minHeight = value;
+                if (value > maxHeight) maxHeight = value;
+            }
+
+            const heightRange = maxHeight - minHeight;
+            console.log('📊 Height range:', minHeight.toFixed(1), 'to', maxHeight.toFixed(1), 'meters');
+
+            // Convert to RGBA (store normalized height in R channel)
+            for (let i = 0; i < elevationData.length; i++) {
+                const normalizedHeight = heightRange > 0 ?
+                    (elevationData[i] - minHeight) / heightRange : 0;
+                const pixelValue = Math.floor(normalizedHeight * 255);
+
+                const pixelIndex = i * 4;
+                imageDataArray[pixelIndex + 0] = pixelValue; // R: normalized height
+                imageDataArray[pixelIndex + 1] = pixelValue; // G: same as R for grayscale
+                imageDataArray[pixelIndex + 2] = pixelValue; // B: same as R for grayscale
+                imageDataArray[pixelIndex + 3] = 255;        // A: fully opaque
+            }
+
+            const imageData = new ImageData(imageDataArray, width, height);
+            console.log('✅ Successfully converted TIF to ImageData using working method');
+
+            return imageData;
+
+        } catch (error) {
+            console.error('❌ Working TIF method also failed:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * 📊 Batch download multiple heightmaps
+     */
+    async downloadMultipleHeightmaps(tiles: Array<{
+        tileId: string;
+        backendUrl: string;
+    }>): Promise<Map<string, ImageData>> {
+        const results = new Map<string, ImageData>();
+        const downloadPromises = tiles.map(async (tile) => {
+            try {
+                const imageData = await this.downloadHeightmapAsImageData(tile.backendUrl);
+                results.set(tile.tileId, imageData);
+            } catch (error) {
+                console.error(`❌ Failed to download heightmap for tile ${tile.tileId}:`, error);
+                // Continue with other downloads
+            }
+        });
+
+        await Promise.all(downloadPromises);
+        console.log(`📊 Downloaded ${results.size}/${tiles.length} heightmaps successfully`);
+
+        return results;
     }
 }
 

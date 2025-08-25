@@ -1,3 +1,4 @@
+// Terrain shaders for streaming terrain (position + normal + uv)
 struct TransformData{
     view: mat4x4<f32>,
     projection: mat4x4<f32>,
@@ -46,5 +47,3 @@ fn fs_main(@location(0) TexCoord: vec2<f32>, @location(1) Normal: vec3<f32>) -> 
     let textureColor = textureSample(myTexture, mySampler, TexCoord);
     return vec4<f32>(textureColor.rgb * dotProduct, textureColor.a);
 }
-
-

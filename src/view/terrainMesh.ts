@@ -21,9 +21,9 @@ export default class TerrainMesh {
         };
         this.indexBuffer = device.createBuffer(initialIndexDescriptor);
 
-        // Buffer layout matching the builder's getFlattenedVertices (position + uv)
+        // Buffer layout for streaming terrain (position + normal + uv)
         this.bufferLayout = {
-            arrayStride: 5 * 4, // position (3) + uv (2)
+            arrayStride: 8 * 4, // position (3) + normal (3) + uv (2)
             attributes: [
                 {
                     shaderLocation: 0,
@@ -32,8 +32,13 @@ export default class TerrainMesh {
                 },
                 {
                     shaderLocation: 1,
-                    format: 'float32x2', // uv
+                    format: 'float32x3', // normal xyz
                     offset: 3 * 4,
+                },
+                {
+                    shaderLocation: 2,
+                    format: 'float32x2', // uv
+                    offset: 6 * 4,
                 }
             ]
         };
@@ -69,7 +74,7 @@ export default class TerrainMesh {
 
         this.indexCount = indices.length;
 
-        console.log(`🏔️ Terrain mesh updated: ${vertices.length / 5} vertices, ${indices.length} indices`);
+        console.log(`🏔️ Terrain mesh updated: ${vertices.length / 8} vertices, ${indices.length} indices`);
     }
 
     /**
