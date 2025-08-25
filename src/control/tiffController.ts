@@ -8,7 +8,12 @@ async function loadGeoTIFF() {
     // Get raster data
     const rasterData = await image.readRasters();
     console.log('Raster size:', image.getWidth(), image.getHeight());
-    console.log('Pixel[0]:', rasterData[0][0]);
+
+    // Type guard for raster data access
+    const firstBand = rasterData[0];
+    if (Array.isArray(firstBand) || firstBand instanceof Float32Array || firstBand instanceof Float64Array || firstBand instanceof Int16Array || firstBand instanceof Uint16Array) {
+        console.log('Pixel[0]:', firstBand[0]);
+    }
 
     // Convert lat/lon to pixel
     const bbox = image.getBoundingBox();

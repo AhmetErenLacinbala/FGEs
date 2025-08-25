@@ -13,7 +13,7 @@ export class TerrainService {
     private tileListeners: Set<(state: TileServiceState) => void>;
     private progressListeners: Set<(progress: ProcessingProgress) => void>;
 
-    constructor(baseUrl: string = 'localhost:3000') {
+    constructor(baseUrl: string = 'http://localhost:3000') {
         this.baseUrl = baseUrl;
         this.tileState = {
             isLoading: false,
