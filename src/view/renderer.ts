@@ -516,7 +516,10 @@ export default class Renderer {
                 const posY = 0; // Keep on ground level
                 const posZ = gridZ * tileSize;
 
-                // Just translate to grid position - no rotation needed if worker generates correct orientation
+                // Step 1: First rotate each tile to lie flat (around local origin)
+                mat4.rotateX(modelMatrix, modelMatrix, -Math.PI / 2);
+
+                // Step 2: Then translate to grid position
                 mat4.translate(modelMatrix, modelMatrix, [posX, posY, posZ]);
 
                 terrainModelMatrices.push(new Float32Array(modelMatrix));
