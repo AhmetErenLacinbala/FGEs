@@ -5,25 +5,37 @@ import { initializeTileIntegration } from './example/terrainExample';
 const canvas: HTMLCanvasElement | null = document.getElementById('gfx-main') as HTMLCanvasElement;
 
 (async () => {
-    // Initialize the existing WebGPU app
     const app = new App(canvas);
     await app.init();
     app.run();
 
-    // Initialize the tile generation system with app reference for 3D terrain
     const tileExample = initializeTileIntegration(app);
 
-    console.log('🎯 Application initialized with tile generation system');
-    console.log('📋 Available tile generation methods:');
-    console.log('  🎯 Tile Generation:');
+    try {
+        console.log('🌞 Loading solar terrain with both heightmap and GHI data...');
+
+        await app.renderer.loadSolarTerrainTile(39.5, 32.5, 30);
+
+        console.log('✅ Solar terrain loaded successfully!');
+        console.log('🏔️ You should see 3D terrain with solar radiation overlay');
+
+    } catch (error) {
+        console.error('❌ Failed to load solar terrain:', error);
+        console.log('📋 Falling back to manual tile generation');
+    }
+
+    console.log('🎯 Application initialized with solar terrain system');
+    console.log('📋 Available methods:');
+    console.log('  🌞 Solar Terrain:');
+    console.log('    - Auto: Solar terrain loads automatically on startup');
+    console.log('    - Manual: Call app.renderer.loadSolarTerrainTile(lat, lng, scale)');
+    console.log('    - Grid: Call app.renderer.loadSolarTerrainGrid(lat, lng, size, scale)');
+    console.log('  🎯 Legacy Tile Generation:');
     console.log('    - UI: Use the tile panel to generate terrain tiles');
     console.log('    - API: Call tileExample.generateTileData(request)');
-    console.log('    - Cache: Call tileExample.getTileFromCache(request)');
-    console.log('    - Grid: Call tileExample.generateTileGrid(lat, lng, size)');
-    console.log('    - Stats: Call tileExample.getTileStats()');
     console.log('');
-    console.log('🏔️ 3D Terrain: Click "Generate Tile" to create terrain in the 3D scene!');
+    console.log('🏔️ 3D Terrain: Both heightmap and solar data visualized together!');
 
-    // Expose tileExample globally for debugging
     (window as any).tileExample = tileExample;
+    (window as any).app = app;
 })();

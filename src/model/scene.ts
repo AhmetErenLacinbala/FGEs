@@ -1,7 +1,6 @@
 import Triangle from "./triangle";
 import Camera from "./camera";
 import { vec3, mat4 } from "gl-matrix";
-import Quad from "./quad";
 import { ObjectTypes, RenderData } from "./definitions";
 import GameObject from "./object";
 import Terrain from "./terrain";
@@ -33,8 +32,8 @@ export default class Scene {
         this.vase = new GameObject([0., 0, .0], [0., 0., 0.]);
         //this.statue = new Statue([0., 0., 0.], [0., 0., 0.]);
 
-        // Position camera for better terrain view: closer, higher up, looking down at origin
-        this.player = new Camera([0.0, 10.0, 10.0], 0, -45); // Looking down at 45 degrees toward origin
+
+        this.player = new Camera([-10.0, 0.0, 1.0], 0, 0);
     }
 
     makeTriangles() {

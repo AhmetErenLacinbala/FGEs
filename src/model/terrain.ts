@@ -12,8 +12,7 @@ export default class Terrain {
     update() {
         mat4.identity(this.model);
         mat4.translate(this.model, this.model, this.position);
-        // Rotate 90 degrees around X-axis to make terrain lie flat on ground
-        mat4.rotateX(this.model, this.model, -Math.PI / 2);
+        mat4.rotateX(this.model, this.model, Math.PI / 2);
     }
 
     getModel(): mat4 {

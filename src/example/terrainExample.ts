@@ -1,11 +1,9 @@
 import { TileController } from '../control/tileController';
 import { terrainService } from '../services/terrainService';
 import { TileHeightmapData, TerrainTileRequest, ProcessingProgress } from '../types/terrain';
+import { fromArrayBuffer } from 'geotiff';
+import { apiService } from '../services/apiService';
 
-/**
- * 🎯 Tile Generation Integration - Clean and Simple
- * Backend Status: ✅ FULLY OPERATIONAL on http://localhost:3000
- */
 export class TileExample {
     private tileController: TileController;
     private app: any; // Reference to main App for 3D terrain creation
@@ -24,11 +22,7 @@ export class TileExample {
         this.demonstrateTileGeneration();
     }
 
-    /**
-     * Callback when tile data is loaded from backend
-     */
     private async handleTileLoaded(data: TileHeightmapData): Promise<void> {
-        // Calculate height range efficiently
         let minHeight = data.heightData[0];
         let maxHeight = data.heightData[0];
 
@@ -52,37 +46,81 @@ export class TileExample {
             dataPoints: data.heightData.length
         });
 
-        // 🎯 Create 3D terrain from the generated tile
         if (this.app && this.app.createTerrainFromTile) {
             try {
                 console.log('🏔️ Creating 3D terrain from generated tile...');
+
+                const lastResponse = terrainService.getTileState().lastResponse;
+                if (lastResponse && (lastResponse as any).cacheInfo?.ghiTileUrl) {
+                    console.log('☀️ GHI data available, downloading for texture...');
+                    console.log('☀️ GHI URL:', (lastResponse as any).cacheInfo.ghiTileUrl);
+
+                    try {
+                        const ghiUrl = apiService.getGHIDataUrl((lastResponse as any).cacheInfo.ghiTileUrl);
+                        const ghiResponse = await apiService.downloadSolarData(ghiUrl);
+
+                        if (ghiResponse.ok) {
+                            const ghiArrayBuffer = await ghiResponse.arrayBuffer();
+                            console.log('☀️ GHI data downloaded, size:', ghiArrayBuffer.byteLength);
+
+                            const ghiTiff = await fromArrayBuffer(ghiArrayBuffer);
+                            const ghiImage = await ghiTiff.getImage();
+                            const ghiRasters = await ghiImage.readRasters();
+
+                            const ghiFloatData = new Float32Array(ghiRasters[0] as ArrayLike<number>);
+
+                            let minGHI = ghiFloatData[0];
+                            let maxGHI = ghiFloatData[0];
+                            for (let i = 1; i < ghiFloatData.length; i++) {
+                                const value = ghiFloatData[i];
+                                if (value < minGHI) minGHI = value;
+                                if (value > maxGHI) maxGHI = value;
+                            }
+
+                            const ghiData = {
+                                width: ghiImage.getWidth(),
+                                height: ghiImage.getHeight(),
+                                ghiData: ghiFloatData,
+                                minGHI,
+                                maxGHI
+                            };
+
+                            console.log('☀️ GHI data processed:', {
+                                width: ghiData.width,
+                                height: ghiData.height,
+                                minGHI: minGHI.toFixed(2),
+                                maxGHI: maxGHI.toFixed(2),
+                                sampleValues: Array.from(ghiFloatData.slice(0, 5))
+                            });
+
+                            await this.app.createTerrainFromTile(data);
+
+                            await this.app.renderer.generateTerrainWithGHI(data, ghiData);
+                            console.log('✅ Terrain created with GHI texture');
+                            return;
+                        }
+                    } catch (ghiError) {
+                        console.warn('⚠️ Failed to load GHI data, using regular terrain:', ghiError);
+                    }
+                }
+
                 await this.app.createTerrainFromTile(data);
             } catch (error) {
                 console.error('❌ Failed to create 3D terrain:', error);
             }
         }
 
-        // 🎯 This is where you can integrate the tile with your WebGPU renderer
         this.createWebGPUTileMesh(data);
     }
 
-    /**
-     * Callback when a tile error occurs
-     */
     private handleTileError(error: string): void {
         console.error('❌ Tile generation error:', error);
     }
 
-    /**
-     * Callback when tile loading state changes
-     */
     private handleTileLoadingStateChange(isLoading: boolean): void {
         console.log('🔄 Tile loading state changed:', isLoading);
     }
 
-    /**
-     * Callback for tile progress updates
-     */
     private handleTileProgress(progress: ProcessingProgress): void {
         console.log(`📊 Tile Progress: ${progress.step} - ${progress.message} (${progress.progress}%)`);
     }
@@ -96,7 +134,7 @@ export class TileExample {
         console.log('🔌 Backend connection test:', isConnected ? 'SUCCESS ✅' : 'FAILED ❌');
 
         if (!isConnected) {
-            console.error('🚨 Backend not available! Make sure NestJS server is running on localhost:3000');
+            console.error('🚨 Backend not available! Make sure NestJS server is running on:', apiService.getBaseUrl());
             return;
         }
 

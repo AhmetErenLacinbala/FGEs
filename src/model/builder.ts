@@ -23,7 +23,7 @@ export default class Builder {
      * @param scale World scale factor (default: 1.0)
      * @returns boolean indicating success
      */
-    populateTerrainData(heightData: Float32Array, width: number, height: number, scale: number = 1.0): boolean {
+    populateTerrainData(heightData: Float32Array, width: number, height: number, _scale: number = 1.0): boolean {
         // Validate input data
         if (!heightData || heightData.length === 0) {
             console.error('Invalid heightmap data: empty or null');
@@ -45,11 +45,11 @@ export default class Builder {
 
         console.log(`🏔️ Generating terrain: ${cols}x${rows} (${heightData.length} pixels)`);
 
-        // Clear existing data
+
         this.vertices = [];
         this.indices = [];
 
-        // Helper function to get height value safely
+
         const getHeightAt = (row: number, col: number): number => {
             if (row >= 0 && row < rows && col >= 0 && col < cols) {
                 return heightData[row * cols + col];
@@ -63,43 +63,40 @@ export default class Builder {
 
         for (let row = 0; row < rows; row++) {
             for (let col = 0; col < cols; col++) {
-                // Much smaller horizontal scale to fit in frustum (far plane = 50)
-                const terrainScale = 0.02; // Very small scale for massive heightmaps
+
+                const terrainScale = 0.02;
                 const x = (col - cols / 2) * terrainScale;
                 const z = (row - rows / 2) * terrainScale;
-                // Very small height variation - keep terrain nearly flat
-                const y = (getHeightAt(row, col) - 1000) * terrainScale * 0.1; // Much smaller height variation
 
-                // Calculate normal using cross product of neighbor differences
-                // Get height differences to calculate smooth normals
+                const y = (getHeightAt(row, col) - 1000) * terrainScale * 0.1;
                 const left = getHeightAt(row, col - 1);
                 const right = getHeightAt(row, col + 1);
                 const up = getHeightAt(row - 1, col);
                 const down = getHeightAt(row + 1, col);
 
-                // Calculate normal using 4-neighbor cross products for smooth shading
-                const dX = (right - left) * terrainScale * 0.01; // Scale down height differences too
+
+                const dX = (right - left) * terrainScale * 0.01;
                 const dZ = (down - up) * terrainScale * 0.01;
 
-                // Normal vector: cross product of tangent vectors
+
                 const normal = vec3.create();
                 vec3.set(normal, -dX, terrainScale * 0.1, -dZ);
 
-                // Normalize the normal vector
+
                 vec3.normalize(normal, normal);
 
-                // Create vertex object
+
                 const vertex: Vertex = {
                     position: vec3.fromValues(x, y, z),
                     color: vec3.fromValues(
-                        Math.min(y * 0.5 + 0.3, 1.0),         // color.r (height-based, adjusted for smaller scale)
-                        0.5,                                   // color.g
-                        Math.max(0.2, 1.0 - y * 0.5)         // color.b
+                        Math.min(y * 0.5 + 0.3, 1.0),
+                        0.5,
+                        Math.max(0.2, 1.0 - y * 0.5)
                     ),
                     normal: normal,
                     uv: vec2.fromValues(
-                        col / (cols - 1),                      // uv.u
-                        row / (rows - 1)                       // uv.v
+                        col / (cols - 1),
+                        row / (rows - 1)
                     )
                 };
 
@@ -107,7 +104,6 @@ export default class Builder {
             }
         }
 
-        // Generate indices for triangle list (6 indices per quad: 2 triangles)
         this.indices = [];
         for (let row = 0; row < rows - 1; row++) {
             for (let col = 0; col < cols - 1; col++) {
@@ -175,7 +171,7 @@ export default class Builder {
             return;
         }
 
-        // Create unique vertices directly from position/normal/uv attributes
+
         const vertexCount = positions.length / 3;
 
         for (let i = 0; i < vertexCount; i++) {

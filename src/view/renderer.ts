@@ -8,6 +8,8 @@ import TerrainMesh from './terrainMesh';
 //import ObjMesh from './objMesh';
 import Builder from '../model/builder';
 import Model from '../model/model';
+import { SolarTerrainRenderer } from './solarTerrainRenderer';
+import { solarTerrainService } from '../services/solarTerrainService';
 
 export default class Renderer {
     canvas: HTMLCanvasElement;
@@ -44,6 +46,9 @@ export default class Renderer {
     builder!: Builder;
     terrainBuilder!: Builder;
 
+    // Solar terrain system
+    solarTerrainRenderer!: SolarTerrainRenderer;
+    solarPipeline!: GPURenderPipeline;
 
     constructor(canvas: HTMLCanvasElement) {
         this.canvas = canvas
@@ -62,6 +67,9 @@ export default class Renderer {
         await this.setupPipeline();
 
         await this.setupBindGroup();
+
+        // Initialize solar terrain system
+        await this.initializeSolarTerrain();
 
     }
 
@@ -231,13 +239,13 @@ export default class Renderer {
             usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE
         };
         this.objectBuffer = this.device.createBuffer(modelBufferDescriptor);
-        await this.triangleMaterial.init(this.device, 'img/img.jpeg', this.materialGroupLayout);
+        await this.triangleMaterial.init(this.device, 'img/floor.jpg', this.materialGroupLayout);
         await this.quadMaterial.init(this.device, 'img/floor.jpg', this.materialGroupLayout);
         await this.quadMaterial.generateMipmaps(this.device);
 
-        // Initialize terrain material with existing texture (reuse floor texture for now)
-        await this.terrainMaterial.init(this.device, 'img/floor.jpg', this.materialGroupLayout);
-        await this.terrainMaterial.generateMipmaps(this.device);
+        // Initialize terrain material - will be set to GHI texture when solar terrain loads
+        this.terrainMaterial = new Material();
+        // Note: Material will be initialized with GHI data in loadSolarTerrainTile()
     }
 
     /**
@@ -281,6 +289,46 @@ export default class Renderer {
         } catch (error) {
             console.error('❌ Error generating terrain mesh:', error);
         }
+    }
+
+    /**
+     * 🌞 Generate terrain with GHI solar data texture
+     */
+    async generateTerrainWithGHI(heightmapData: any, ghiData: { width: number; height: number; ghiData: Float32Array; minGHI: number; maxGHI: number }) {
+        try {
+            console.log('🌞 Generating terrain with GHI solar texture...');
+
+            // Generate terrain mesh from heightmap
+            await this.generateTerrain(heightmapData);
+
+            // Create new material from GHI data to replace floor.jpg
+            const ghiMaterial = new Material();
+            await ghiMaterial.initFromGHIData(
+                this.device,
+                ghiData.ghiData,
+                ghiData.width,
+                ghiData.height,
+                ghiData.minGHI,
+                ghiData.maxGHI,
+                this.materialGroupLayout
+            );
+
+            // Replace terrain material with GHI material
+            this.terrainMaterial = ghiMaterial;
+
+            console.log('✅ Terrain with GHI texture generated successfully');
+
+        } catch (error) {
+            console.error('❌ Error generating terrain with GHI:', error);
+        }
+    }
+
+    /**
+     * 🎯 Ensure terrain object exists in scene for rendering
+     */
+    ensureTerrainInScene(): void {
+        // This should be called by the app to make sure terrain count > 0
+        console.log('🎯 Ensuring terrain object exists in scene for GHI rendering');
     }
 
     async render(renderObjects: RenderData) {
@@ -334,14 +382,33 @@ export default class Renderer {
         renderpass.draw(6, renderObjects.objectCounts[ObjectTypes.QUAD], 0, objectsDrawn);
         objectsDrawn += renderObjects.objectCounts[ObjectTypes.QUAD];*/
 
-        // Render terrain if it has data
-        if (this.terrainMesh.hasData() && renderObjects.objectCounts[ObjectTypes.TERRAIN] > 0) {
+        // Debug terrain rendering conditions
+        console.log('🔍 Terrain render check:', {
+            hasMeshData: this.terrainMesh.hasData(),
+            terrainCount: renderObjects.objectCounts[ObjectTypes.TERRAIN],
+            hasBindGroup: !!this.terrainMaterial.bindGroup
+        });
+
+        // Render terrain if it has data AND material is initialized with GHI
+        if (this.terrainMesh.hasData() &&
+            renderObjects.objectCounts[ObjectTypes.TERRAIN] > 0 &&
+            this.terrainMaterial.bindGroup) {
             renderpass.setVertexBuffer(0, this.terrainMesh.vertexBuffer);
             renderpass.setIndexBuffer(this.terrainMesh.indexBuffer, 'uint32');
             renderpass.setBindGroup(1, this.terrainMaterial.bindGroup);
             renderpass.drawIndexed(this.terrainMesh.indexCount, renderObjects.objectCounts[ObjectTypes.TERRAIN], 0, 0, objectsDrawn);
             objectsDrawn += renderObjects.objectCounts[ObjectTypes.TERRAIN];
+            console.log('🌞 Rendering terrain with GHI texture');
+        } else if (this.terrainMesh.hasData() && renderObjects.objectCounts[ObjectTypes.TERRAIN] > 0) {
+            console.log('⚠️ Terrain mesh ready but GHI material not initialized yet');
+        } else if (this.terrainMesh.hasData()) {
+            console.log('⚠️ Terrain mesh ready but terrain count is 0');
+        } else {
+            console.log('⚠️ No terrain mesh data available');
         }
+
+        // Render solar terrain tiles
+        objectsDrawn = this.renderSolarTerrain(renderpass, objectsDrawn);
 
         this.model.bind(renderpass);
         renderpass.setBindGroup(1, this.triangleMaterial.bindGroup);
@@ -368,5 +435,115 @@ export default class Renderer {
                 }
             ]
         })
+    }
+
+    /**
+     * 🌞 Initialize solar terrain system
+     */
+    async initializeSolarTerrain(): Promise<void> {
+        console.log('🌞 Initializing solar terrain system...');
+
+        try {
+            // Create solar terrain renderer
+            this.solarTerrainRenderer = new SolarTerrainRenderer(this.device);
+
+            console.log('✅ Solar terrain system initialized');
+
+        } catch (error) {
+            console.error('❌ Failed to initialize solar terrain system:', error);
+        }
+    }
+
+    /**
+     * 🏔️ Load and display a solar terrain tile
+     */
+    async loadSolarTerrainTile(centerLat: number, centerLng: number, scale: number = 30): Promise<void> {
+        try {
+            console.log(`🏔️ Loading solar terrain tile at ${centerLat}, ${centerLng} (scale: ${scale})`);
+
+            // Request complete tile data from backend
+            const tileData = await solarTerrainService.generateCompleteTile({
+                centerLat,
+                centerLng,
+                scale
+            });
+
+            console.log('🌞 Complete tile data received, generating terrain with GHI texture...');
+
+            // Generate terrain using the existing system but with GHI texture
+            await this.generateTerrainWithGHI(tileData.heightmap, tileData.solarData);
+
+            console.log(`✅ Solar terrain tile loaded: ${tileData.tileId}`);
+
+        } catch (error) {
+            console.error(`❌ Failed to load solar terrain tile:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * 🌍 Load a grid of solar terrain tiles
+     */
+    async loadSolarTerrainGrid(centerLat: number, centerLng: number, gridSize: number = 3, scale: number = 30): Promise<void> {
+        try {
+            console.log(`🌍 Loading ${gridSize}x${gridSize} solar terrain grid at ${centerLat}, ${centerLng}`);
+
+            // Generate tile grid
+            const tiles = await solarTerrainService.generateTileGrid(centerLat, centerLng, gridSize, scale);
+
+            // Add all tiles to renderer in parallel
+            const addPromises = tiles.map(tileData => this.solarTerrainRenderer.addTile(tileData));
+            await Promise.allSettled(addPromises);
+
+            console.log(`✅ Solar terrain grid loaded: ${tiles.length} tiles`);
+
+        } catch (error) {
+            console.error(`❌ Failed to load solar terrain grid:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * 🎬 Render solar terrain tiles
+     */
+    renderSolarTerrain(renderpass: GPURenderPassEncoder, objectsDrawn: number): number {
+        if (!this.solarTerrainRenderer) {
+            return objectsDrawn;
+        }
+
+        const solarTiles = this.solarTerrainRenderer.getAllTiles();
+
+        if (solarTiles.length === 0) {
+            return objectsDrawn;
+        }
+
+        console.log(`🎬 Rendering ${solarTiles.length} solar terrain tiles`);
+
+        // Render each solar terrain tile
+        for (const tile of solarTiles) {
+            // Update object buffer with tile's model matrix
+            this.device.queue.writeBuffer(
+                this.objectBuffer,
+                objectsDrawn * 16 * 4, // offset
+                new Float32Array(tile.modelMatrix)
+            );
+
+            // Set vertex and index buffers
+            renderpass.setVertexBuffer(0, tile.vertexBuffer);
+            renderpass.setIndexBuffer(tile.indexBuffer, 'uint32');
+
+            // Draw the tile
+            renderpass.drawIndexed(
+                tile.meshData.indexCount,
+                1, // instanceCount
+                0, // firstIndex
+                0, // baseVertex
+                objectsDrawn // firstInstance
+            );
+
+            objectsDrawn++;
+        }
+
+        return objectsDrawn;
     }
 }

@@ -70,10 +70,10 @@ export class TileController {
         <div class="coordinates-input">
           <div class="coordinate-row">
             <label>
-              Center Latitude: <input type="number" id="center-lat" step="0.001" value="40.0" placeholder="Center latitude">
+              Center Latitude: <input type="number" id="center-lat" step="0.001" value="35.363726" placeholder="Center latitude">
             </label>
             <label>
-              Center Longitude: <input type="number" id="center-lng" step="0.001" value="32.75" placeholder="Center longitude">
+              Center Longitude: <input type="number" id="center-lng" step="0.001" value="138.729852" placeholder="Center longitude">
             </label>
           </div>
           <div class="coordinate-row">
@@ -82,7 +82,7 @@ export class TileController {
             </label>
           </div>
           <div class="coordinate-info">
-            <small>📏 Tile size: 0.01° (~1.1km) | Generated bounds will be calculated automatically</small>
+            <small>📏 Tile size: 0.01° Generated bounds will be calculated automatically</small>
           </div>
         </div>
 

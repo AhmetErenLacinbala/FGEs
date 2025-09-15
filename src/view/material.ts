@@ -11,6 +11,96 @@ export default class Material {
 
 
 
+    /**
+     * ☀️ Initialize material from GHI solar data
+     */
+    async initFromGHIData(device: GPUDevice, ghiData: Float32Array, width: number, height: number, minGHI: number, maxGHI: number, bindGroupLayout: GPUBindGroupLayout) {
+        console.log('☀️ Creating material from GHI data:', { width, height, minGHI, maxGHI });
+
+        // Convert GHI data to RGBA texture data
+        const textureData = new Uint8Array(width * height * 4);
+
+        for (let i = 0; i < ghiData.length; i++) {
+            const normalizedGHI = (ghiData[i] - minGHI) / (maxGHI - minGHI);
+
+            // Create color mapping for solar radiation
+            // Blue (low) → Green → Yellow → Red (high)
+            let r, g, b;
+            if (normalizedGHI < 0.5) {
+                // Blue to Green
+                const t = normalizedGHI * 2;
+                r = 0;
+                g = Math.floor(t * 255);
+                b = Math.floor((1 - t) * 255);
+            } else {
+                // Green to Yellow to Red
+                const t = (normalizedGHI - 0.5) * 2;
+                r = Math.floor(t * 255);
+                g = 255;
+                b = 0;
+            }
+
+            const pixelIndex = i * 4;
+            textureData[pixelIndex + 0] = r;     // Red
+            textureData[pixelIndex + 1] = g;     // Green
+            textureData[pixelIndex + 2] = b;     // Blue
+            textureData[pixelIndex + 3] = 255;   // Alpha
+        }
+
+        // Create texture from GHI data
+        const textureDescriptor: GPUTextureDescriptor = {
+            size: { width, height },
+            format: "rgba8unorm",
+            usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT
+        };
+
+        this.texture = device.createTexture(textureDescriptor);
+
+        // Upload texture data
+        device.queue.writeTexture(
+            { texture: this.texture },
+            textureData,
+            { bytesPerRow: width * 4 },
+            { width, height }
+        );
+
+        // Create texture view
+        const viewDescriptor: GPUTextureViewDescriptor = {
+            format: "rgba8unorm",
+            dimension: "2d",
+            aspect: "all",
+            baseMipLevel: 0,
+            mipLevelCount: 1,
+            baseArrayLayer: 0,
+            arrayLayerCount: 1,
+        };
+        this.view = this.texture.createView(viewDescriptor);
+
+        // Create sampler
+        const samplerDescriptor: GPUSamplerDescriptor = {
+            magFilter: "linear",
+            minFilter: "linear"
+        };
+        this.sampler = device.createSampler(samplerDescriptor);
+
+        // Create bind group
+        this.bindGroup = device.createBindGroup({
+            layout: bindGroupLayout,
+            entries: [
+                {
+                    binding: 0,
+                    resource: this.view
+                },
+                {
+                    binding: 1,
+                    resource: this.sampler
+                }
+            ]
+        });
+
+        console.log('✅ GHI material created successfully');
+    }
+
     async init(device: GPUDevice, url: string, bindGroupLayout: GPUBindGroupLayout) {
         const response: Response = await fetch(url);
         const blob: Blob = await response.blob();
