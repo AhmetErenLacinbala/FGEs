@@ -1,5 +1,6 @@
 import Material from './material';
-import shader from './shaders.wgsl?raw'
+import basicShader from './basicShaders.wgsl?raw'
+import terrainShader from './terrainShaders.wgsl?raw'
 import { TriangleMesh } from './triangle_mesh';
 import { mat4 } from 'gl-matrix'
 import { ObjectTypes, RenderData } from '../model/definitions';
@@ -21,6 +22,7 @@ export default class Renderer {
 
     uniformBuffer!: GPUBuffer
     pipeline!: GPURenderPipeline;
+    terrainPipeline!: GPURenderPipeline;
     frameGroupLayout!: GPUBindGroupLayout;
     materialGroupLayout!: GPUBindGroupLayout;
     frameBindGroup!: GPUBindGroup;
@@ -180,6 +182,7 @@ export default class Renderer {
         });
 
 
+        // Create pipeline for triangles and other basic geometry
         this.pipeline = this.device.createRenderPipeline(
             {
                 layout: pipelineLayout,
@@ -187,16 +190,44 @@ export default class Renderer {
                 {
                     module: this.device.createShaderModule(
                         {
-                            code: shader
+                            code: basicShader
                         }),
                     entryPoint: "vs_main",
-                    buffers: [this.triangleMesh.bufferLayout]
+                    buffers: [this.triangleMesh.bufferLayout] // Use triangle layout for basic geometry
                 },
                 fragment:
                 {
                     module: this.device.createShaderModule(
                         {
-                            code: shader
+                            code: basicShader
+                        }),
+                    entryPoint: "fs_main",
+                    targets: [{ format: this.format }]
+                },
+                primitive: {
+                    topology: 'triangle-list',
+                },
+                depthStencil: this.depthStencilState
+            });
+
+        // Create separate pipeline for terrain with different vertex layout
+        this.terrainPipeline = this.device.createRenderPipeline(
+            {
+                layout: pipelineLayout,
+                vertex:
+                {
+                    module: this.device.createShaderModule(
+                        {
+                            code: terrainShader
+                        }),
+                    entryPoint: "vs_main",
+                    buffers: [this.terrainMesh.bufferLayout] // Use terrain layout for streaming terrain
+                },
+                fragment:
+                {
+                    module: this.device.createShaderModule(
+                        {
+                            code: terrainShader
                         }),
                     entryPoint: "fs_main",
                     targets: [{ format: this.format }]
