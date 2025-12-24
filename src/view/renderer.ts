@@ -255,8 +255,8 @@ export default class Renderer {
         try {
             console.log('🏔️ Generating terrain mesh from tile data...');
 
-            // Use terrain builder to populate terrain data with appropriate scale for visibility
-            const worldScale = 1.0; // Much smaller scale since we adjusted height calculation
+
+            const worldScale = 1.0;
             const success = this.terrainBuilder.populateTerrainFromTile(tileData, worldScale);
 
             if (!success) {
@@ -296,7 +296,7 @@ export default class Renderer {
      */
     async generateTerrainWithGHI(heightmapData: any, ghiData: { width: number; height: number; ghiData: Float32Array; minGHI: number; maxGHI: number }) {
         try {
-            console.log('🌞 Generating terrain with GHI solar texture...');
+            console.log('Generating terrain with GHI solar texture...');
 
             // Generate terrain mesh from heightmap
             await this.generateTerrain(heightmapData);
@@ -313,7 +313,7 @@ export default class Renderer {
                 this.materialGroupLayout
             );
 
-            // Replace terrain material with GHI material
+
             this.terrainMaterial = ghiMaterial;
 
             console.log('✅ Terrain with GHI texture generated successfully');
@@ -323,13 +323,6 @@ export default class Renderer {
         }
     }
 
-    /**
-     * 🎯 Ensure terrain object exists in scene for rendering
-     */
-    ensureTerrainInScene(): void {
-        // This should be called by the app to make sure terrain count > 0
-        console.log('🎯 Ensuring terrain object exists in scene for GHI rendering');
-    }
 
     async render(renderObjects: RenderData) {
 
@@ -398,7 +391,7 @@ export default class Renderer {
             renderpass.setBindGroup(1, this.terrainMaterial.bindGroup);
             renderpass.drawIndexed(this.terrainMesh.indexCount, renderObjects.objectCounts[ObjectTypes.TERRAIN], 0, 0, objectsDrawn);
             objectsDrawn += renderObjects.objectCounts[ObjectTypes.TERRAIN];
-            console.log('🌞 Rendering terrain with GHI texture');
+            console.log(' Rendering terrain with GHI texture');
         } else if (this.terrainMesh.hasData() && renderObjects.objectCounts[ObjectTypes.TERRAIN] > 0) {
             console.log('⚠️ Terrain mesh ready but GHI material not initialized yet');
         } else if (this.terrainMesh.hasData()) {
@@ -482,7 +475,7 @@ export default class Renderer {
     }
 
     /**
-     * 🌍 Load a grid of solar terrain tiles
+     * Load a grid of solar terrain tiles
      */
     async loadSolarTerrainGrid(centerLat: number, centerLng: number, gridSize: number = 3, scale: number = 30): Promise<void> {
         try {
@@ -504,7 +497,7 @@ export default class Renderer {
     }
 
     /**
-     * 🎬 Render solar terrain tiles
+     *  Render solar terrain tiles
      */
     renderSolarTerrain(renderpass: GPURenderPassEncoder, objectsDrawn: number): number {
         if (!this.solarTerrainRenderer) {
@@ -519,16 +512,13 @@ export default class Renderer {
 
         console.log(`🎬 Rendering ${solarTiles.length} solar terrain tiles`);
 
-        // Render each solar terrain tile
         for (const tile of solarTiles) {
-            // Update object buffer with tile's model matrix
             this.device.queue.writeBuffer(
                 this.objectBuffer,
                 objectsDrawn * 16 * 4, // offset
                 new Float32Array(tile.modelMatrix)
             );
 
-            // Set vertex and index buffers
             renderpass.setVertexBuffer(0, tile.vertexBuffer);
             renderpass.setIndexBuffer(tile.indexBuffer, 'uint32');
 

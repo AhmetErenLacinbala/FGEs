@@ -1,27 +1,467 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Terrain Tile Generator</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
 
-<head>
-  <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Terrain Tile Generator</title>
+      body {
+        font-family: "Segoe UI", system-ui, sans-serif;
+        background: #0a0a0f;
+        color: #e0e0e0;
+        min-height: 100vh;
+      }
 
-</head>
+      .app-container {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        min-height: 100vh;
+      }
 
-<body>
-  <div id="app">
-    <div id="tile-ui"></div>
-  </div>
-  <div id="compcheck"></div>
+      /* Sidebar */
+      .sidebar {
+        background: #12121a;
+        border-right: 1px solid #2a2a3a;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        overflow-y: auto;
+      }
 
-  <canvas id="gfx-main" width="800" height="600"></canvas>
-  <h2>Key: <span id="keyboardKey"></span></h2>
-  <h2>Mouse X: <span id="mousex"></span></h2>
-  <h2>Mouse Y: <span id="mousey"></span></h2>
+      .sidebar h1 {
+        font-size: 1.4rem;
+        color: #fff;
+        margin-bottom: 10px;
+      }
 
-  <script type="module" src="/src/main.ts">
-  </script>
-</body>
+      .panel {
+        background: #1a1a24;
+        border-radius: 12px;
+        padding: 16px;
+        border: 1px solid #2a2a3a;
+      }
 
+      .panel-title {
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #888;
+        margin-bottom: 12px;
+      }
+
+      /* Map container */
+      #map-container {
+        width: 100%;
+        height: 200px;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #222;
+        position: relative;
+      }
+
+      #google-map {
+        width: 100%;
+        height: 100%;
+      }
+
+      /* Coordinates display */
+      .coords-display {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      .coord-field {
+        background: #0f0f14;
+        border-radius: 6px;
+        padding: 10px;
+      }
+
+      .coord-field label {
+        display: block;
+        font-size: 0.75rem;
+        color: #666;
+        margin-bottom: 4px;
+      }
+
+      .coord-field input {
+        width: 100%;
+        background: transparent;
+        border: none;
+        color: #4ecdc4;
+        font-size: 1rem;
+        font-family: "JetBrains Mono", monospace;
+        outline: none;
+      }
+
+      /* Scale slider */
+      .scale-control {
+        margin-top: 12px;
+      }
+
+      .scale-control label {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.85rem;
+        color: #888;
+        margin-bottom: 8px;
+      }
+
+      .scale-control input[type="range"] {
+        width: 100%;
+        height: 6px;
+        -webkit-appearance: none;
+        background: #2a2a3a;
+        border-radius: 3px;
+        outline: none;
+      }
+
+      .scale-control input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 16px;
+        height: 16px;
+        background: #4ecdc4;
+        border-radius: 50%;
+        cursor: pointer;
+      }
+
+      /* Buttons */
+      .btn {
+        width: 100%;
+        padding: 12px 20px;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .btn-primary {
+        background: linear-gradient(135deg, #4ecdc4, #44a8a0);
+        color: #0a0a0f;
+      }
+
+      .btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(78, 205, 196, 0.3);
+      }
+
+      .btn-primary:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      /* Status */
+      .status {
+        margin-top: 12px;
+        padding: 10px;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        display: none;
+      }
+
+      .status.visible {
+        display: block;
+      }
+
+      .status.loading {
+        background: #1a2a3a;
+        color: #4ecdc4;
+      }
+
+      .status.success {
+        background: #1a3a2a;
+        color: #4ecd6c;
+      }
+
+      .status.error {
+        background: #3a1a1a;
+        color: #cd4e4e;
+      }
+
+      /* Main canvas area */
+      .main-area {
+        display: flex;
+        flex-direction: column;
+        background: #0a0a0f;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      .canvas-container {
+        flex: 1;
+        display: flex;
+        position: relative;
+        overflow: hidden;
+      }
+
+      #gfx-main {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      /* Info bar */
+      .info-bar {
+        display: flex;
+        gap: 20px;
+        padding: 12px 20px;
+        background: #12121a;
+        border-top: 1px solid #2a2a3a;
+        font-size: 0.85rem;
+        color: #666;
+        flex-shrink: 0;
+      }
+
+      .info-bar span {
+        color: #4ecdc4;
+        font-family: "JetBrains Mono", monospace;
+      }
+
+      #compcheck {
+        padding: 8px 12px;
+        background: #1a3a2a;
+        color: #4ecd6c;
+        border-radius: 6px;
+        font-size: 0.8rem;
+      }
+
+      /* Quick locations */
+      .quick-locations {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 10px;
+      }
+
+      .quick-loc-btn {
+        padding: 6px 10px;
+        background: #0f0f14;
+        border: 1px solid #2a2a3a;
+        border-radius: 4px;
+        color: #888;
+        font-size: 0.75rem;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .quick-loc-btn:hover {
+        background: #1a1a24;
+        color: #4ecdc4;
+        border-color: #4ecdc4;
+      }
+
+      /* Search bar */
+      .search-container {
+        margin-top: 10px;
+      }
+
+      #place-search {
+        width: 100%;
+        padding: 10px 12px;
+        background: #0f0f14;
+        border: 1px solid #2a2a3a;
+        border-radius: 6px;
+        color: #e0e0e0;
+        font-size: 0.9rem;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+
+      #place-search:focus {
+        border-color: #4ecdc4;
+      }
+
+      #place-search::placeholder {
+        color: #666;
+      }
+
+      /* Custom search results dropdown */
+      .search-results {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: #1a1a24;
+        border: 1px solid #2a2a3a;
+        border-radius: 6px;
+        margin-top: 4px;
+        max-height: 200px;
+        overflow-y: auto;
+        z-index: 1000;
+      }
+
+      .search-results.visible {
+        display: block;
+      }
+
+      .search-result-item {
+        padding: 10px 12px;
+        color: #e0e0e0;
+        cursor: pointer;
+        border-bottom: 1px solid #2a2a3a;
+        transition: background 0.15s;
+      }
+
+      .search-result-item:last-child {
+        border-bottom: none;
+      }
+
+      .search-result-item:hover {
+        background: #2a2a3a;
+      }
+
+      .search-result-item .name {
+        color: #4ecdc4;
+        font-weight: 500;
+      }
+
+      .search-result-item .address {
+        font-size: 0.8rem;
+        color: #888;
+        margin-top: 2px;
+      }
+
+      .search-container {
+        margin-top: 10px;
+        position: relative;
+      }
+
+      .search-loading {
+        padding: 10px 12px;
+        color: #888;
+        text-align: center;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="app-container">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <h1>🏔️ Terrain Generator</h1>
+
+        <!-- Map Panel -->
+        <div class="panel">
+          <div class="panel-title">Select Location</div>
+
+          <div id="map-container">
+            <div id="google-map"></div>
+          </div>
+
+          <!-- Search bar -->
+          <div class="search-container">
+            <input type="text" id="place-search" placeholder="Search for a place..." autocomplete="off" />
+            <div id="search-results" class="search-results"></div>
+          </div>
+
+          <!-- Quick location buttons -->
+          <div class="quick-locations">
+            <button class="quick-loc-btn" data-lat="39.925" data-lng="32.837">Ankara</button>
+            <button class="quick-loc-btn" data-lat="41.015" data-lng="28.979">Istanbul</button>
+
+            <button class="quick-loc-btn" data-lat="46.818" data-lng="8.227">Alps</button>
+            <button class="quick-loc-btn" data-lat="36.578" data-lng="-118.292">Yosemite</button>
+            <button class="quick-loc-btn" data-lat="27.988" data-lng="86.925">Everest</button>
+            <button class="quick-loc-btn" data-lat="35.361" data-lng="138.728">富士山</button>
+          </div>
+
+          <div class="coords-display">
+            <div class="coord-field">
+              <label>Latitude</label>
+              <input type="number" id="input-lat" step="0.001" value="39.925" />
+            </div>
+            <div class="coord-field">
+              <label>Longitude</label>
+              <input type="number" id="input-lng" step="0.001" value="32.837" />
+            </div>
+          </div>
+
+          <div class="scale-control">
+            <label>
+              <span>Tile Resolution</span>
+              <span id="scale-value">30</span>
+            </label>
+            <input type="range" id="input-scale" min="10" max="100" value="30" />
+          </div>
+        </div>
+
+        <!-- Generate Panel -->
+        <div class="panel">
+          <button class="btn btn-primary" id="btn-generate">Generate Terrain</button>
+
+          <div class="status" id="status-message">Loading...</div>
+        </div>
+
+        <!-- Info Panel -->
+        <div class="panel">
+          <div class="panel-title">ℹ️ How to use</div>
+          <p style="font-size: 0.85rem; color: #888; line-height: 1.5">
+            1. Click on the map or enter coordinates
+            <br />
+            2. Adjust the tile scale (resolution)
+            <br />
+            3. Click "Generate Terrain"
+            <br />
+            4. Use WASD to move, mouse to look
+          </p>
+        </div>
+
+        <div id="compcheck"></div>
+      </aside>
+
+      <!-- Main Area -->
+      <main class="main-area">
+        <div class="canvas-container">
+          <canvas id="gfx-main"></canvas>
+        </div>
+
+        <div class="info-bar">
+          <div>
+            Key:
+            <span id="keyboardKey">-</span>
+          </div>
+          <div>
+            Mouse:
+            <span id="mousex">0</span>
+            ,
+            <span id="mousey">0</span>
+          </div>
+          <div>
+            Objects:
+            <span id="object-count">0</span>
+          </div>
+          <div>
+            Press
+            <span>C</span>
+            to switch camera mode
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      // This will be called when Google Maps loads
+      async function initMap() {
+        // Import marker library for AdvancedMarkerElement
+        await google.maps.importLibrary("marker");
+        window.dispatchEvent(new CustomEvent("google-maps-ready"));
+      }
+    </script>
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCn0spM6TqRl4F1YQhrJES7-J5QmtGxuLE&callback=initMap&v=weekly&libraries=marker"></script>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
 </html>

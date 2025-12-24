@@ -45,21 +45,8 @@ export class SolarTerrainRenderer {
     }
 
 
-    /**
-     * 🏗️ Generate terrain mesh from heightmap and solar data
-     */
 
 
-
-
-
-
-
-
-
-    /**
-     * ☀️ Create solar texture from GHI data
-     */
 
 
     getAllTiles(): SolarTerrainTile[] {

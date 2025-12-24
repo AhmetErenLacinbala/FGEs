@@ -81,9 +81,9 @@ export class TileController {
               Scale (m): <input type="number" id="tile-scale" step="1" value="30" placeholder="Scale in meters">
             </label>
           </div>
-          <div class="coordinate-info">
+          <!--div class="coordinate-info">
             <small>📏 Tile size: 0.01° Generated bounds will be calculated automatically</small>
-          </div>
+          </!--div-->
         </div>
 
         <div class="actions">
@@ -132,15 +132,15 @@ export class TileController {
           <div class="result-item">
             <strong>Dimensions:</strong> <span id="tile-result-dimensions">-</span>
           </div>
-          <div class="result-item">
+          <!--div class="result-item">
             <strong>Height Range:</strong> <span id="tile-result-height-range">-</span>
-          </div>
+          </!--div-->
           <div class="result-item">
             <strong>Scale:</strong> <span id="tile-result-scale">-</span>
           </div>
-          <div class="result-item">
+          <!--div class="result-item">
             <strong>Tile Size:</strong> <span id="tile-result-tile-size">-</span>
-          </div>
+          </!--div-->
           <div class="result-item">
             <strong>File Size:</strong> <span id="tile-result-file-size">-</span>
           </div>
@@ -150,7 +150,7 @@ export class TileController {
         </div>
 
         <div class="cache-info" id="tile-cache-info">
-          <h4>💾 Tile Cache Status</h4>
+          <h4> Tile Cache Status</h4>
           <div class="cache-stats">
             <span id="tile-cache-count">0</span> tiles cached | 
             <span id="tile-cache-size">0 KB</span> total

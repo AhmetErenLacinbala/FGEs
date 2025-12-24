@@ -1,6 +1,6 @@
 import './style.css'
-import App from './control/app';
-import { initializeTileIntegration } from './example/terrainExample';
+import App from './control/app.new';
+import MapController from './control/mapController';
 
 const canvas: HTMLCanvasElement | null = document.getElementById('gfx-main') as HTMLCanvasElement;
 
@@ -9,33 +9,18 @@ const canvas: HTMLCanvasElement | null = document.getElementById('gfx-main') as 
     await app.init();
     app.run();
 
-    const tileExample = initializeTileIntegration(app);
+    // Initialize map controller for Google Maps integration
+    const mapController = new MapController(app, {
+        defaultLat: 39.925,
+        defaultLng: 32.837,
+        defaultZoom: 10
+    });
 
-    try {
-        console.log('🌞 Loading solar terrain with both heightmap and GHI data...');
+    console.log('🎯 Application initialized with Google Maps integration');
+    console.log(`📦 Scene contains ${app.scene.count} objects`);
+    console.log('🗺️ Click the map to select a location, then click "Generate Terrain"');
 
-        await app.renderer.loadSolarTerrainTile(39.5, 32.5, 30);
-
-        console.log('✅ Solar terrain loaded successfully!');
-        console.log('🏔️ You should see 3D terrain with solar radiation overlay');
-
-    } catch (error) {
-        console.error('❌ Failed to load solar terrain:', error);
-        console.log('📋 Falling back to manual tile generation');
-    }
-
-    console.log('🎯 Application initialized with solar terrain system');
-    console.log('📋 Available methods:');
-    console.log('  🌞 Solar Terrain:');
-    console.log('    - Auto: Solar terrain loads automatically on startup');
-    console.log('    - Manual: Call app.renderer.loadSolarTerrainTile(lat, lng, scale)');
-    console.log('    - Grid: Call app.renderer.loadSolarTerrainGrid(lat, lng, size, scale)');
-    console.log('  🎯 Legacy Tile Generation:');
-    console.log('    - UI: Use the tile panel to generate terrain tiles');
-    console.log('    - API: Call tileExample.generateTileData(request)');
-    console.log('');
-    console.log('🏔️ 3D Terrain: Both heightmap and solar data visualized together!');
-
-    (window as any).tileExample = tileExample;
+    // Expose to console for debugging
     (window as any).app = app;
+    (window as any).mapController = mapController;
 })();
