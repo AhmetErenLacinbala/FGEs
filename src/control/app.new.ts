@@ -12,7 +12,8 @@ import {
     RenderableObject,
     MeshFactory,
     MaterialFactory,
-    Transform
+    Transform,
+    RenderType
 } from "../core";
 
 export default class App {
@@ -134,6 +135,20 @@ export default class App {
         });
         this.scene.add(vase);
         this.scene.add(vase2);
+
+        const billboardMesh = MeshFactory.quad(device);
+        const billboardMaterial = await MaterialFactory.fromTexture(device, "img/floor.jpg", layout);
+
+        const billboard = new RenderableObject({
+            mesh: billboardMesh,
+            material: billboardMaterial.bindGroup,
+            renderType: RenderType.Billboard,
+            transform: new Transform(
+                vec3.fromValues(2, 1, 0),
+                vec3.fromValues(0, 0, 0)
+            )
+        });
+        this.scene.add(billboard);
 
         // Example 2: Create spinning triangles
         for (let y = -5; y <= 5; y++) {

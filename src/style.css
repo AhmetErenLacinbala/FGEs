@@ -1,3 +1,16 @@
+@import "tailwindcss";
+
+@theme {
+  --color-app-bg: #0a0a0f;
+  --color-sidebar: #12121a;
+  --color-panel: #1a1a24;
+  --color-border: #2a2a3a;
+  --color-accent: #4ecdc4;
+  --color-accent-hover: #44a8a0;
+
+  --font-mono: "JetBrains Mono", monospace;
+}
+
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;

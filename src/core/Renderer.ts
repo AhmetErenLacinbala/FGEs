@@ -1,17 +1,20 @@
 import { mat4 } from "gl-matrix";
 import shader from "../view/shaders.wgsl?raw";
+import billboardShader from "../view/billboard.wgsl?raw";
+import terrainShader from "../view/terrainShader.wgsl?raw";
 import { RenderData } from "./Scene";
 import { STANDARD_BUFFER_LAYOUT } from "./MeshData";
+import { RenderType } from "./RenderableObject";
 
 /**
- * Renderer - Simplified WebGPU renderer
+ * Renderer -  WebGPU renderer
  * 
  * Uses a generic render loop that works with any RenderableObject.
  * No need to modify when adding new object types.
  */
 export default class Renderer {
     canvas: HTMLCanvasElement;
-    
+
     // WebGPU core
     adapter!: GPUAdapter | null;
     device!: GPUDevice;
@@ -20,9 +23,16 @@ export default class Renderer {
 
     // Pipeline
     pipeline!: GPURenderPipeline;
+    billboardPipeline!: GPURenderPipeline;
+    terrainPipeline!: GPURenderPipeline;
     frameGroupLayout!: GPUBindGroupLayout;
     materialGroupLayout!: GPUBindGroupLayout;
+    terrainMaterialGroupLayout!: GPUBindGroupLayout;
     frameBindGroup!: GPUBindGroup;
+
+    // Blend settings (shared by all terrain objects)
+    blendSettingsBuffer!: GPUBuffer;
+    private _satelliteOpacity: number = 0.1;
 
     // Buffers
     uniformBuffer!: GPUBuffer;
@@ -100,6 +110,37 @@ export default class Renderer {
                 }
             ]
         });
+
+        // Terrain material: dual textures + blend uniform
+        this.terrainMaterialGroupLayout = this.device.createBindGroupLayout({
+            entries: [
+                {
+                    binding: 0,
+                    visibility: GPUShaderStage.FRAGMENT,
+                    texture: {} // GHI texture
+                },
+                {
+                    binding: 1,
+                    visibility: GPUShaderStage.FRAGMENT,
+                    sampler: {} // GHI sampler
+                },
+                {
+                    binding: 2,
+                    visibility: GPUShaderStage.FRAGMENT,
+                    texture: {} // Satellite texture
+                },
+                {
+                    binding: 3,
+                    visibility: GPUShaderStage.FRAGMENT,
+                    sampler: {} // Satellite sampler
+                },
+                {
+                    binding: 4,
+                    visibility: GPUShaderStage.FRAGMENT,
+                    buffer: {} // Blend settings uniform
+                }
+            ]
+        });
     }
 
     private setupBuffers(): void {
@@ -114,6 +155,15 @@ export default class Renderer {
             size: 64 * 1024, // 1024 objects max
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
         });
+
+        // Blend settings buffer (16 bytes for alignment)
+        this.blendSettingsBuffer = this.device.createBuffer({
+            size: 16,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+        });
+
+        // Initialize blend settings
+        this.updateBlendSettings(this._satelliteOpacity);
     }
 
     private setupDepthBuffer(): void {
@@ -150,6 +200,7 @@ export default class Renderer {
     }
 
     private setupPipeline(): void {
+        // Standard pipeline
         const pipelineLayout = this.device.createPipelineLayout({
             bindGroupLayouts: [this.frameGroupLayout, this.materialGroupLayout]
         });
@@ -163,6 +214,52 @@ export default class Renderer {
             },
             fragment: {
                 module: this.device.createShaderModule({ code: shader }),
+                entryPoint: "fs_main",
+                targets: [{ format: this.format }]
+            },
+            primitive: {
+                topology: 'triangle-list'
+            },
+            depthStencil: this.depthStencilState
+        });
+
+        const billboardPipelineLayout = this.device.createPipelineLayout({
+            bindGroupLayouts: [this.frameGroupLayout, this.materialGroupLayout]
+        });
+
+        this.billboardPipeline = this.device.createRenderPipeline({
+            layout: billboardPipelineLayout,
+            vertex: {
+                module: this.device.createShaderModule({ code: billboardShader }),
+                entryPoint: "vs_main",
+                buffers: [STANDARD_BUFFER_LAYOUT]
+            },
+            fragment: {
+                module: this.device.createShaderModule({ code: billboardShader }),
+                entryPoint: "fs_main",
+                targets: [{ format: this.format }]
+            },
+            primitive: {
+                topology: 'triangle-list'
+            },
+            depthStencil: this.depthStencilState
+
+        })
+
+        // Terrain pipeline (dual texture blending)
+        const terrainPipelineLayout = this.device.createPipelineLayout({
+            bindGroupLayouts: [this.frameGroupLayout, this.terrainMaterialGroupLayout]
+        });
+
+        this.terrainPipeline = this.device.createRenderPipeline({
+            layout: terrainPipelineLayout,
+            vertex: {
+                module: this.device.createShaderModule({ code: terrainShader }),
+                entryPoint: "vs_main",
+                buffers: [STANDARD_BUFFER_LAYOUT]
+            },
+            fragment: {
+                module: this.device.createShaderModule({ code: terrainShader }),
                 entryPoint: "fs_main",
                 targets: [{ format: this.format }]
             },
@@ -191,6 +288,55 @@ export default class Renderer {
     }
 
     /**
+     * Get the terrain material group layout for dual-texture terrain
+     */
+    getTerrainMaterialGroupLayout(): GPUBindGroupLayout {
+        return this.terrainMaterialGroupLayout;
+    }
+
+    /**
+     * Get the blend settings buffer for terrain materials
+     */
+    getBlendSettingsBuffer(): GPUBuffer {
+        return this.blendSettingsBuffer;
+    }
+
+    /**
+     * Update the satellite opacity (0.0 - 1.0)
+     */
+    updateBlendSettings(opacity: number): void {
+        this._satelliteOpacity = Math.max(0, Math.min(1, opacity));
+        const data = new Float32Array([this._satelliteOpacity, 0, 0, 0]);
+        this.device.queue.writeBuffer(this.blendSettingsBuffer, 0, data);
+    }
+
+    /**
+     * Get current satellite opacity
+     */
+    get satelliteOpacity(): number {
+        return this._satelliteOpacity;
+    }
+
+    /**
+     * Toggle satellite visibility (0% ↔ 10%)
+     */
+    toggleSatellite(): void {
+        if (this._satelliteOpacity > 0) {
+            this.updateBlendSettings(0);
+        } else {
+            this.updateBlendSettings(0.1);
+        }
+        console.log(`🛰️ Satellite opacity: ${Math.round(this._satelliteOpacity * 100)}%`);
+    }
+
+    /**
+     * Get the terrain pipeline
+     */
+    getTerrainPipeline(): GPURenderPipeline {
+        return this.terrainPipeline;
+    }
+
+    /**
      * Render all objects in the scene
      */
     render(renderData: RenderData): void {
@@ -204,10 +350,10 @@ export default class Renderer {
         // Create projection matrix
         const projection = mat4.create();
         mat4.perspective(
-            projection, 
-            Math.PI / 4, 
-            this.canvas.width / this.canvas.height, 
-            0.1, 
+            projection,
+            Math.PI / 4,
+            this.canvas.width / this.canvas.height,
+            0.1,
             100
         );
 
@@ -228,7 +374,7 @@ export default class Renderer {
         // Begin render pass
         const commandEncoder = this.device.createCommandEncoder();
         const textureView = this.context.getCurrentTexture().createView();
-        
+
         const renderPass = commandEncoder.beginRenderPass({
             colorAttachments: [{
                 view: textureView,
@@ -239,15 +385,45 @@ export default class Renderer {
             depthStencilAttachment: this.depthStencilAttachment
         });
 
-        renderPass.setPipeline(this.pipeline);
         renderPass.setBindGroup(0, this.frameBindGroup);
 
-        // Render each object
-        objects.forEach((obj, instanceIndex) => {
-            renderPass.setBindGroup(1, obj.material);
-            obj.bind(renderPass);
-            obj.draw(renderPass, instanceIndex);
-        });
+        // Group objects by render type
+        const standardObjects = objects.filter(obj => obj.renderType === RenderType.Standard);
+        const terrainObjects = objects.filter(obj => obj.renderType === RenderType.Terrain);
+        const billboardObjects = objects.filter(obj => obj.renderType === RenderType.Billboard);
+
+        // Render standard objects
+        if (standardObjects.length > 0) {
+            renderPass.setPipeline(this.pipeline);
+            standardObjects.forEach((obj) => {
+                const instanceIndex = objects.indexOf(obj);
+                renderPass.setBindGroup(1, obj.material);
+                obj.bind(renderPass);
+                obj.draw(renderPass, instanceIndex);
+            });
+        }
+
+        // Render terrain objects with terrain pipeline
+        if (terrainObjects.length > 0) {
+            renderPass.setPipeline(this.terrainPipeline);
+            terrainObjects.forEach((obj) => {
+                const instanceIndex = objects.indexOf(obj);
+                renderPass.setBindGroup(1, obj.material);
+                obj.bind(renderPass);
+                obj.draw(renderPass, instanceIndex);
+            });
+        }
+
+        // Render billboard objects
+        if (billboardObjects.length > 0) {
+            renderPass.setPipeline(this.billboardPipeline);
+            billboardObjects.forEach((obj) => {
+                const instanceIndex = objects.indexOf(obj);
+                renderPass.setBindGroup(1, obj.material);
+                obj.bind(renderPass);
+                obj.draw(renderPass, instanceIndex);
+            });
+        }
 
         renderPass.end();
         this.device.queue.submit([commandEncoder.finish()]);

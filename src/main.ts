@@ -2,9 +2,51 @@ import './style.css'
 import App from './control/app.new';
 import MapController from './control/mapController';
 
+// Get API key from environment variable
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+if (!GOOGLE_MAPS_API_KEY) {
+    console.error('❌ Missing VITE_GOOGLE_MAPS_API_KEY in .env file');
+}
+
+/**
+ * Dynamically load Google Maps API script
+ */
+function loadGoogleMapsAPI(apiKey: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+        // Check if already loaded
+        if (window.google?.maps) {
+            resolve();
+            return;
+        }
+
+        const script = document.createElement('script');
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initMap&v=weekly&libraries=marker`;
+        script.async = true;
+        script.defer = true;
+        script.onerror = () => reject(new Error('Failed to load Google Maps API'));
+
+        // initMap is defined in index.html and dispatches 'google-maps-ready'
+        document.head.appendChild(script);
+
+        // Wait for the custom event
+        window.addEventListener('google-maps-ready', () => resolve(), { once: true });
+    });
+}
+
 const canvas: HTMLCanvasElement | null = document.getElementById('gfx-main') as HTMLCanvasElement;
 
 (async () => {
+    // Load Google Maps API first
+    if (GOOGLE_MAPS_API_KEY) {
+        try {
+            await loadGoogleMapsAPI(GOOGLE_MAPS_API_KEY);
+            console.log('✅ Google Maps API loaded');
+        } catch (error) {
+            console.error('❌ Failed to load Google Maps API:', error);
+        }
+    }
+
     const app = new App(canvas);
     await app.init();
     app.run();
@@ -13,7 +55,8 @@ const canvas: HTMLCanvasElement | null = document.getElementById('gfx-main') as 
     const mapController = new MapController(app, {
         defaultLat: 39.925,
         defaultLng: 32.837,
-        defaultZoom: 10
+        defaultZoom: 10,
+        apiKey: GOOGLE_MAPS_API_KEY // Pass API key
     });
 
     console.log('🎯 Application initialized with Google Maps integration');

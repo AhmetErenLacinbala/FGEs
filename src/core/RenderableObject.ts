@@ -3,6 +3,18 @@ import { MeshData } from "./MeshData";
 import Transform from "./Transform";
 
 /**
+ * Render pipeline type for objects
+ */
+export enum RenderType {
+    /** Standard rendering with basic shader */
+    Standard = 'standard',
+    /** Terrain with dual-texture blending (GHI + Satellite) */
+    Terrain = 'terrain',
+    /** Billboard that always faces camera */
+    Billboard = 'billboard'
+}
+
+/**
  * RenderableObject - Unified renderable entity
  * 
  * Combines mesh, material, and transform into a single object that can be
@@ -12,7 +24,8 @@ import Transform from "./Transform";
  *   const obj = new RenderableObject({
  *     mesh: await MeshFactory.fromGLTF(device, "model.glb"),
  *     material: materialBindGroup,
- *     transform: new Transform([0, 0, 0])
+ *     transform: new Transform([0, 0, 0]),
+ *     renderType: RenderType.Standard
  *   });
  *   scene.add(obj);
  */
@@ -22,18 +35,21 @@ export interface RenderableObjectConfig {
     material: GPUBindGroup;
     transform?: Transform;
     visible?: boolean;
+    /** Render pipeline type (default: Standard) */
+    renderType?: RenderType;
     /** Optional update callback called each frame */
     onUpdate?: (obj: RenderableObject, deltaTime: number) => void;
 }
 
 export default class RenderableObject {
     private static _idCounter = 0;
-    
+
     readonly id: number;
     mesh: MeshData;
     material: GPUBindGroup;
     transform: Transform;
     visible: boolean;
+    renderType: RenderType;
     onUpdate?: (obj: RenderableObject, deltaTime: number) => void;
 
     constructor(config: RenderableObjectConfig) {
@@ -42,6 +58,7 @@ export default class RenderableObject {
         this.material = config.material;
         this.transform = config.transform ?? new Transform();
         this.visible = config.visible ?? true;
+        this.renderType = config.renderType ?? RenderType.Standard;
         this.onUpdate = config.onUpdate;
     }
 

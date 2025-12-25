@@ -40,14 +40,14 @@
 
 export { default as Renderer } from './Renderer';
 export { default as Scene, type RenderData } from './Scene';
-export { default as RenderableObject, type RenderableObjectConfig } from './RenderableObject';
+export { default as RenderableObject, RenderType, type RenderableObjectConfig } from './RenderableObject';
 export { default as MeshFactory } from './MeshFactory';
 export { default as MaterialFactory, type MaterialBindGroup } from './MaterialFactory';
 export { default as Transform } from './Transform';
-export { 
-    type MeshData, 
-    createMeshData, 
-    destroyMeshData, 
-    STANDARD_BUFFER_LAYOUT 
+export {
+    type MeshData,
+    createMeshData,
+    destroyMeshData,
+    STANDARD_BUFFER_LAYOUT
 } from './MeshData';
 

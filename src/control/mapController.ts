@@ -5,7 +5,7 @@
 
 import App from './app.new';
 import { solarTerrainService } from '../services/solarTerrainService';
-import { MeshFactory, MaterialFactory, RenderableObject, Transform } from '../core';
+import { MeshFactory, MaterialFactory, RenderableObject, Transform, RenderType } from '../core';
 import { vec3 } from 'gl-matrix';
 
 declare global {
@@ -19,6 +19,7 @@ export interface MapControllerOptions {
     defaultLng?: number;
     defaultZoom?: number;
     mapId?: string;
+    apiKey?: string;
 }
 
 export default class MapController {
@@ -35,6 +36,9 @@ export default class MapController {
     private objectCount: HTMLElement;
     private searchInput: HTMLInputElement;
     private searchResults: HTMLElement;
+    private useSatelliteCheckbox: HTMLInputElement;
+    private satelliteOpacitySlider: HTMLInputElement;
+    private satelliteOpacityValue: HTMLElement;
 
     // Current state
     private currentLat: number;
@@ -43,8 +47,8 @@ export default class MapController {
     private isGenerating: boolean = false;
     private mapId: string;
 
-    // Places API (New) config
-    private readonly PLACES_API_KEY = 'AIzaSyCn0spM6TqRl4F1YQhrJES7-J5QmtGxuLE';
+    // API Key (from environment variable)
+    private readonly apiKey: string;
     private searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
     constructor(app: App, options: MapControllerOptions = {}) {
@@ -52,6 +56,7 @@ export default class MapController {
         this.currentLat = options.defaultLat ?? 39.925;
         this.currentLng = options.defaultLng ?? 32.837;
         this.mapId = options.mapId ?? 'DEMO_MAP_ID';
+        this.apiKey = options.apiKey ?? '';
 
         this.inputLat = document.getElementById('input-lat') as HTMLInputElement;
         this.inputLng = document.getElementById('input-lng') as HTMLInputElement;
@@ -62,9 +67,13 @@ export default class MapController {
         this.objectCount = document.getElementById('object-count') as HTMLElement;
         this.searchInput = document.getElementById('place-search') as HTMLInputElement;
         this.searchResults = document.getElementById('search-results') as HTMLElement;
+        this.useSatelliteCheckbox = document.getElementById('use-satellite') as HTMLInputElement;
+        this.satelliteOpacitySlider = document.getElementById('satellite-opacity') as HTMLInputElement;
+        this.satelliteOpacityValue = document.getElementById('satellite-opacity-value') as HTMLElement;
 
         this.setupEventListeners();
         this.setupPlacesSearch();
+        this.setupSatelliteToggle();
         this.initGoogleMaps(options.defaultZoom ?? 10);
     }
 
@@ -135,7 +144,7 @@ export default class MapController {
         // Create custom marker content element
         const markerContent = document.createElement('div');
         markerContent.innerHTML = `
-                < div style = "
+            <div style = "
             width: 24px;
             height: 24px;
             background: #4ecdc4;
@@ -143,7 +152,8 @@ export default class MapController {
             border - radius: 50 %;
             box - shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
             cursor: grab;
-            "></>
+            border-radius: 100%;
+            "></div>
         `;
 
         // Create AdvancedMarkerElement (new API)
@@ -231,7 +241,7 @@ export default class MapController {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Goog-Api-Key': this.PLACES_API_KEY,
+                    'X-Goog-Api-Key': this.apiKey,
                     'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.location'
                 },
                 body: JSON.stringify({
@@ -263,13 +273,11 @@ export default class MapController {
         }
 
         this.searchResults.innerHTML = places.map(place => `
-                < div class="search-result-item"
-            data - lat="${place.location?.latitude}"
-            data - lng="${place.location?.longitude}" >
-                <div class="name" > ${place.displayName?.text || 'Unknown'} </div>
-                    < div class="address" > ${place.formattedAddress || ''} </>
-                        </div>
-                            `).join('');
+            <div class="search-result-item" data-lat="${place.location?.latitude}" data-lng="${place.location?.longitude}">
+                <div class="name">${place.displayName?.text || 'Unknown'}</div>
+                <div class="address">${place.formattedAddress || ''}</div>
+            </div>
+        `).join('');
 
         // Add click handlers to results
         this.searchResults.querySelectorAll('.search-result-item').forEach(item => {
@@ -355,7 +363,8 @@ export default class MapController {
 
             // Create terrain mesh
             const device = this.app.renderer.getDevice();
-            const layout = this.app.renderer.getMaterialGroupLayout();
+            const terrainLayout = this.app.renderer.getTerrainMaterialGroupLayout();
+            const blendBuffer = this.app.renderer.getBlendSettingsBuffer();
 
             const terrainMesh = MeshFactory.fromHeightmap(
                 device,
@@ -368,27 +377,50 @@ export default class MapController {
                 }
             );
 
-            // Create material from GHI data
-            const terrainMaterial = MaterialFactory.fromGHIData(
+            // Always fetch satellite imagery (for V key toggle to work)
+            this.showStatus('🛰️ Fetching satellite imagery...', 'loading');
+            const zoom = this.calculateSatelliteZoom(this.currentScale);
+
+            const satelliteImage = await MaterialFactory.fetchSatelliteImage(
+                this.currentLat,
+                this.currentLng,
+                this.apiKey,
+                { zoom, size: 640, scale: 2 }
+            );
+
+            // Set initial opacity based on checkbox and slider state
+            const useSatellite = this.useSatelliteCheckbox?.checked ?? false;
+            const sliderOpacity = parseInt(this.satelliteOpacitySlider?.value ?? '20') / 100;
+            this.app.renderer.updateBlendSettings(useSatellite ? sliderOpacity : 0);
+
+            // Create dual-texture terrain material
+            const terrainMaterial = MaterialFactory.createTerrainMaterial(
                 device,
-                tileData.solarData.ghiData,
-                tileData.solarData.width,
-                tileData.solarData.height,
-                tileData.solarData.minGHI,
-                tileData.solarData.maxGHI,
-                layout
+                {
+                    data: tileData.solarData.ghiData,
+                    width: tileData.solarData.width,
+                    height: tileData.solarData.height,
+                    minGHI: tileData.solarData.minGHI,
+                    maxGHI: tileData.solarData.maxGHI
+                },
+                { data: satelliteImage },
+                terrainLayout,
+                blendBuffer
             );
 
             // Create terrain object
             const terrain = new RenderableObject({
                 mesh: terrainMesh,
                 material: terrainMaterial.bindGroup,
+                renderType: RenderType.Terrain,
                 transform: new Transform(
                     vec3.fromValues(0, 0, -5),
                     vec3.fromValues(90, 0, 0),
                     vec3.fromValues(1, 1, 1)
                 )
             });
+
+
 
             this.app.scene.add(terrain);
 
@@ -408,6 +440,68 @@ export default class MapController {
     }
 
     /**
+     * Setup satellite toggle (V key + checkbox + slider)
+     */
+    private setupSatelliteToggle(): void {
+        // Get current slider value as opacity (0-1)
+        const getSliderOpacity = () => {
+            return parseInt(this.satelliteOpacitySlider?.value ?? '20') / 100;
+        };
+
+        // Update slider display
+        const updateSliderDisplay = (value: number) => {
+            if (this.satelliteOpacityValue) {
+                this.satelliteOpacityValue.textContent = `${Math.round(value * 100)}%`;
+            }
+        };
+
+        // Checkbox change handler - toggle satellite on/off using slider value
+        if (this.useSatelliteCheckbox) {
+            this.useSatelliteCheckbox.addEventListener('change', () => {
+                const opacity = this.useSatelliteCheckbox.checked ? getSliderOpacity() : 0;
+                this.app.renderer.updateBlendSettings(opacity);
+            });
+        }
+
+        // Slider change handler - update opacity in real-time
+        if (this.satelliteOpacitySlider) {
+            this.satelliteOpacitySlider.addEventListener('input', () => {
+                const opacity = getSliderOpacity();
+                updateSliderDisplay(opacity);
+
+                // Only apply if checkbox is checked
+                if (this.useSatelliteCheckbox?.checked) {
+                    this.app.renderer.updateBlendSettings(opacity);
+                }
+            });
+        }
+
+        // V key handler
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'KeyV' && !this.isInputFocused()) {
+                // Toggle checkbox
+                if (this.useSatelliteCheckbox) {
+                    this.useSatelliteCheckbox.checked = !this.useSatelliteCheckbox.checked;
+                    // Trigger change event
+                    this.useSatelliteCheckbox.dispatchEvent(new Event('change'));
+                } else {
+                    // Fallback: directly toggle renderer
+                    this.app.renderer.toggleSatellite();
+                }
+            }
+        });
+    }
+
+    /**
+     * Check if an input element is focused (to avoid triggering shortcuts while typing)
+     */
+    private isInputFocused(): boolean {
+        const activeElement = document.activeElement;
+        return activeElement instanceof HTMLInputElement ||
+            activeElement instanceof HTMLTextAreaElement;
+    }
+
+    /**
      * Get current coordinates
      */
     getCoordinates(): { lat: number; lng: number; scale: number } {
@@ -416,6 +510,24 @@ export default class MapController {
             lng: this.currentLng,
             scale: this.currentScale
         };
+    }
+
+    /**
+     * Calculate appropriate satellite zoom level based on tile scale
+     * Scale is in meters, lower scale = higher zoom needed
+     */
+    private calculateSatelliteZoom(scale: number): number {
+        // Approximate mapping from scale to zoom
+        // scale 10m → zoom 19 (very detailed)
+        // scale 30m → zoom 17 (default)
+        // scale 100m → zoom 14 (wider area)
+
+        if (scale <= 10) return 19;
+        if (scale <= 20) return 18;
+        if (scale <= 30) return 17;
+        if (scale <= 50) return 16;
+        if (scale <= 75) return 15;
+        return 14;
     }
 }
 

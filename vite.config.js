@@ -1,4 +1,5 @@
 import { defineConfig, loadEnv } from 'vite';
+import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig(({ command, mode }) => {
     // Load env file based on `mode` in the current working directory.
@@ -9,6 +10,9 @@ export default defineConfig(({ command, mode }) => {
     console.log('🔧 Vite Config - API Base URL:', env.VITE_API_BASE_URL);
     
     return {
+        plugins: [
+            tailwindcss(),
+        ],
         server: {
             port: 3001,
         },

@@ -6,12 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Terrain Tile Generator</title>
     <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-
       body {
         font-family: "Segoe UI", system-ui, sans-serif;
         background: #0a0a0f;
@@ -192,11 +186,6 @@
 
       /* Main canvas area */
       .main-area {
-        display: flex;
-        flex-direction: column;
-        background: #0a0a0f;
-        height: 100vh;
-        overflow: hidden;
       }
 
       .canvas-container {
@@ -344,6 +333,66 @@
         color: #888;
         text-align: center;
       }
+
+      .checkbox-option {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+        padding: 8px 10px;
+        background: #0f0f14;
+        border-radius: 6px;
+        transition: background 0.2s;
+      }
+
+      .checkbox-option:hover {
+        background: #1a1a24;
+      }
+
+      .checkbox-option input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        accent-color: #4ecdc4;
+        cursor: pointer;
+      }
+
+      .option-desc {
+        font-size: 0.75rem;
+        color: #666;
+        padding-left: 28px;
+        margin-top: 2px;
+      }
+
+      .satellite-opacity-control label {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.85rem;
+        color: #888;
+        margin-bottom: 8px;
+      }
+
+      .satellite-opacity-control label span:last-child {
+        color: #4ecdc4;
+        font-family: "JetBrains Mono", monospace;
+      }
+
+      .satellite-opacity-control input[type="range"] {
+        width: 100%;
+        height: 6px;
+        -webkit-appearance: none;
+        background: #2a2a3a;
+        border-radius: 3px;
+        outline: none;
+      }
+
+      .satellite-opacity-control input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 16px;
+        height: 16px;
+        background: #4ecdc4;
+        border-radius: 50%;
+        cursor: pointer;
+      }
     </style>
   </head>
 
@@ -389,12 +438,29 @@
             </div>
           </div>
 
-          <div class="scale-control">
-            <label>
-              <span>Tile Resolution</span>
-              <span id="scale-value">30</span>
-            </label>
-            <input type="range" id="input-scale" min="10" max="100" value="30" />
+          <div class="flex flex-col gap-4">
+            <div class="scale-control">
+              <label>
+                <span>Tile Resolution</span>
+                <span id="scale-value">30</span>
+              </label>
+              <input type="range" id="input-scale" min="10" max="100" value="30" />
+            </div>
+            <div class="border-t border-gray-700 flex flex-col gap-2 pt-4">
+              <label class="checkbox-option">
+                <input type="checkbox" id="use-satellite" />
+                <span class="checkmark"></span>
+                <span class="option-label text-red-500">Satellite Imagery</span>
+              </label>
+
+              <div class="satellite-opacity-control">
+                <label>
+                  <span>Opacity</span>
+                  <span id="satellite-opacity-value">20%</span>
+                </label>
+                <input type="range" id="satellite-opacity" min="0" max="100" value="20" />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -407,23 +473,28 @@
 
         <!-- Info Panel -->
         <div class="panel">
-          <div class="panel-title">ℹ️ How to use</div>
+          <div class="panel-title">How to use</div>
           <p style="font-size: 0.85rem; color: #888; line-height: 1.5">
             1. Click on the map or enter coordinates
             <br />
-            2. Adjust the tile scale (resolution)
+            2. Enable "Satellite Imagery" for overlay
             <br />
             3. Click "Generate Terrain"
             <br />
-            4. Use WASD to move, mouse to look
+            4. Press
+            <b>V</b>
+            to toggle satellite
+            <br />
+            5. Use WASD to move,
+            <b>C</b>
+            for camera
           </p>
         </div>
 
         <div id="compcheck"></div>
       </aside>
 
-      <!-- Main Area -->
-      <main class="main-area">
+      <main class="fixed top-0 right-0 left-[320px] h-screen flex flex-col bg-app-bg overflow-hidden">
         <div class="canvas-container">
           <canvas id="gfx-main"></canvas>
         </div>
@@ -444,9 +515,10 @@
             <span id="object-count">0</span>
           </div>
           <div>
-            Press
             <span>C</span>
-            to switch camera mode
+            camera |
+            <span>V</span>
+            satellite
           </div>
         </div>
       </main>
@@ -460,7 +532,7 @@
         window.dispatchEvent(new CustomEvent("google-maps-ready"));
       }
     </script>
-    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCn0spM6TqRl4F1YQhrJES7-J5QmtGxuLE&callback=initMap&v=weekly&libraries=marker"></script>
+    <!-- Google Maps script is loaded dynamically from main.ts using env variable -->
 
     <script type="module" src="/src/main.ts"></script>
   </body>
