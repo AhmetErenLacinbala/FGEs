@@ -11,7 +11,9 @@ export enum RenderType {
     /** Terrain with dual-texture blending (GHI + Satellite) */
     Terrain = 'terrain',
     /** Billboard that always faces camera */
-    Billboard = 'billboard'
+    Billboard = 'billboard',
+    /** Decal projected onto terrain surface (like a shadow) */
+    Decal = 'decal'
 }
 
 /**

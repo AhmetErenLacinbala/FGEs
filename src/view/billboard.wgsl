@@ -33,10 +33,11 @@ fn vs_main(
   let sy = length(vec3<f32>(model[1].x, model[1].y, model[1].z));
   let v = transformUBO.view;
 
+// Camera direction
   let rightWS = normalize(vec3<f32>(v[0].x, v[1].x, v[2].x));
   let upWS    = normalize(vec3<f32>(v[0].y, v[1].y, v[2].y));
 
-  // Build billboard vertex in world space using quad local x/y
+w
   let local = vertexPosition.xy; // expect -0.5..0.5
   let worldPos =
     centerWS

@@ -1,11 +1,12 @@
 import { WebIO, Primitive } from "@gltf-transform/core";
+import { vec3 } from "gl-matrix";
 import { MeshData, createMeshData, STANDARD_BUFFER_LAYOUT } from "./MeshData";
 
 /**
  * MeshFactory - Factory for creating meshes from various sources
  * 
  * Usage:
- *   const mesh = await MeshFactory.fromGLTF(device, "models/vase.glb");
+ *   const submeshes = await MeshFactory.fromGLTF(device, "models/character.glb");
  *   const mesh = MeshFactory.triangle(device);
  *   const mesh = MeshFactory.fromHeightmap(device, heightData, width, height);
  */
@@ -47,6 +48,77 @@ export default class MeshFactory {
     }
 
     /**
+     * Create a quad from 4 custom world-space points
+     * Points should be in order: bottom-left, bottom-right, top-right, top-left
+     * UVs are automatically assigned to corners
+     */
+    /**
+     * Create a subdivided quad from 4 corner points
+     * Points: [0]=bottom-left, [1]=bottom-right, [2]=top-right, [3]=top-left
+     * Subdivisions create a grid that interpolates between corners
+     */
+    static customQuad(device: GPUDevice, points: vec3[], subdivisions: number = 1): MeshData {
+        if (points.length !== 4) {
+            throw new Error(`customQuad requires exactly 4 points, got ${points.length}`);
+        }
+
+        const rows = subdivisions + 1;
+        const cols = subdivisions + 1;
+        const vertexCount = rows * cols;
+        const vertices = new Float32Array(vertexCount * 5);
+
+        // Generate grid vertices with bilinear interpolation
+        for (let row = 0; row < rows; row++) {
+            for (let col = 0; col < cols; col++) {
+                const u = col / subdivisions;
+                const v = row / subdivisions;
+                const idx = (row * cols + col) * 5;
+
+                // Bilinear interpolation between 4 corners
+                // p0(0,0) --- p1(1,0)
+                //   |           |
+                // p3(0,1) --- p2(1,1)
+                const x = (1 - u) * (1 - v) * points[0][0] + u * (1 - v) * points[1][0] +
+                    u * v * points[2][0] + (1 - u) * v * points[3][0];
+                const y = (1 - u) * (1 - v) * points[0][1] + u * (1 - v) * points[1][1] +
+                    u * v * points[2][1] + (1 - u) * v * points[3][1];
+                const z = (1 - u) * (1 - v) * points[0][2] + u * (1 - v) * points[1][2] +
+                    u * v * points[2][2] + (1 - u) * v * points[3][2];
+
+                vertices[idx + 0] = x;
+                vertices[idx + 1] = y;
+                vertices[idx + 2] = z;
+                vertices[idx + 3] = u;
+                vertices[idx + 4] = v;
+            }
+        }
+
+        // Generate indices for triangle grid
+        const numQuads = subdivisions * subdivisions;
+        const indices = new Uint32Array(numQuads * 6);
+        let indexIdx = 0;
+
+        for (let row = 0; row < subdivisions; row++) {
+            for (let col = 0; col < subdivisions; col++) {
+                const topLeft = row * cols + col;
+                const topRight = topLeft + 1;
+                const bottomLeft = (row + 1) * cols + col;
+                const bottomRight = bottomLeft + 1;
+
+                indices[indexIdx++] = topLeft;
+                indices[indexIdx++] = bottomLeft;
+                indices[indexIdx++] = topRight;
+
+                indices[indexIdx++] = topRight;
+                indices[indexIdx++] = bottomLeft;
+                indices[indexIdx++] = bottomRight;
+            }
+        }
+
+        return createMeshData(device, vertices, indices);
+    }
+
+    /**
      * Create a plane mesh (horizontal)
      */
     static plane(device: GPUDevice, width: number = 1.0, depth: number = 1.0): MeshData {
@@ -70,45 +142,59 @@ export default class MeshFactory {
     }
 
     /**
-     * Load mesh from GLTF file
+     * Parse a single GLTF primitive into MeshData
      */
-    static async fromGLTF(device: GPUDevice, url: string): Promise<MeshData> {
-        const io = new WebIO();
-        const document = await io.read(url);
-        const root = document.getRoot();
-        const mesh = root.listMeshes()[0];
-
-        if (!mesh) {
-            throw new Error(`No meshes found in glTF file: ${url}`);
-        }
-
-        const primitive: Primitive = mesh.listPrimitives()[0];
-        if (!primitive) {
-            throw new Error(`No primitives found in mesh: ${url}`);
-        }
-
+    private static parsePrimitive(device: GPUDevice, primitive: Primitive, name: string): MeshData {
         const positions = primitive.getAttribute('POSITION')?.getArray();
         const uvs = primitive.getAttribute('TEXCOORD_0')?.getArray();
         const indicesArray = primitive.getIndices()?.getArray();
 
         if (!positions) {
-            throw new Error(`Missing position data in: ${url}`);
+            throw new Error(`Missing position data in primitive: ${name}`);
         }
 
         const vertexCount = positions.length / 3;
         const vertices = new Float32Array(vertexCount * 5);
 
         for (let i = 0; i < vertexCount; i++) {
-            vertices[i * 5 + 0] = positions[i * 3 + 0];     // x
-            vertices[i * 5 + 1] = positions[i * 3 + 1];     // y
-            vertices[i * 5 + 2] = positions[i * 3 + 2];     // z
-            vertices[i * 5 + 3] = uvs ? uvs[i * 2 + 0] : 0; // u
-            vertices[i * 5 + 4] = uvs ? uvs[i * 2 + 1] : 0; // v
+            vertices[i * 5 + 0] = positions[i * 3 + 0];
+            vertices[i * 5 + 1] = positions[i * 3 + 1];
+            vertices[i * 5 + 2] = positions[i * 3 + 2];
+            vertices[i * 5 + 3] = uvs ? uvs[i * 2 + 0] : 0;
+            vertices[i * 5 + 4] = uvs ? uvs[i * 2 + 1] : 0;
         }
 
         const indices = indicesArray ? new Uint32Array(indicesArray) : undefined;
-
         return createMeshData(device, vertices, indices);
+    }
+
+    /**
+     * Returns array of MeshData, one for each primitive across all meshes
+     */
+    static async fromGLTF(device: GPUDevice, url: string): Promise<MeshData[]> {
+        const io = new WebIO();
+        const document = await io.read(url);
+        const root = document.getRoot();
+        const meshes = root.listMeshes();
+
+        if (meshes.length === 0) {
+            throw new Error(`No meshes found in glTF file: ${url}`);
+        }
+
+        const result: MeshData[] = [];
+
+        for (let meshIdx = 0; meshIdx < meshes.length; meshIdx++) {
+            const mesh = meshes[meshIdx];
+            const primitives = mesh.listPrimitives();
+
+            for (let primIdx = 0; primIdx < primitives.length; primIdx++) {
+                const name = `${url}[mesh=${meshIdx}, primitive=${primIdx}]`;
+                result.push(this.parsePrimitive(device, primitives[primIdx], name));
+            }
+        }
+
+        console.log(`MeshFactory: Loaded ${result.length} submeshes from ${url}`);
+        return result;
     }
 
     /**
