@@ -1,6 +1,7 @@
 import { mat4, vec3 } from "gl-matrix";
 import Camera from "../model/camera";
 import RenderableObject from "./RenderableObject";
+import InstancedMesh from "./InstancedMesh";
 
 /**
  * Render data passed to the renderer each frame
@@ -8,6 +9,7 @@ import RenderableObject from "./RenderableObject";
 export interface RenderData {
     viewTransform: mat4;
     objects: RenderableObject[];
+    instancedMeshes: InstancedMesh[];
 }
 
 /**
@@ -26,6 +28,7 @@ export interface RenderData {
  */
 export default class Scene {
     private _objects: Map<number, RenderableObject> = new Map();
+    private _instancedMeshes: InstancedMesh[] = [];
     private _camera: Camera;
     private _lastTime: number = 0;
 
@@ -40,6 +43,33 @@ export default class Scene {
         this._objects.set(object.id, object);
         console.log(`Scene: Added object ${object.id}`);
         return this;
+    }
+
+    /**
+     * Add an instanced mesh to the scene
+     */
+    addInstanced(mesh: InstancedMesh): this {
+        this._instancedMeshes.push(mesh);
+        console.log(`Scene: Added instanced mesh with ${mesh.getInstanceCount()} instances`);
+        return this;
+    }
+
+    /**
+     * Remove an instanced mesh from the scene
+     */
+    removeInstanced(mesh: InstancedMesh): this {
+        const index = this._instancedMeshes.indexOf(mesh);
+        if (index !== -1) {
+            this._instancedMeshes.splice(index, 1);
+        }
+        return this;
+    }
+
+    /**
+     * Get all instanced meshes
+     */
+    getInstancedMeshes(): InstancedMesh[] {
+        return this._instancedMeshes.filter(m => m.visible);
     }
 
     /**
@@ -105,6 +135,10 @@ export default class Scene {
             object.update(deltaTime);
         }
 
+        for (const mesh of this._instancedMeshes) {
+            mesh.updateBuffer();
+        }
+
         this._camera.update();
     }
 
@@ -114,7 +148,8 @@ export default class Scene {
     getRenderData(): RenderData {
         return {
             viewTransform: this._camera.getView(),
-            objects: this.getVisible()
+            objects: this.getVisible(),
+            instancedMeshes: this.getInstancedMeshes()
         };
     }
 
@@ -139,21 +174,21 @@ export default class Scene {
      */
     moveCamera(forwards: number, right: number, up: number): void {
         vec3.scaleAndAdd(
-            this._camera.position, 
-            this._camera.position, 
-            this._camera.forwards, 
+            this._camera.position,
+            this._camera.position,
+            this._camera.forwards,
             forwards
         );
         vec3.scaleAndAdd(
-            this._camera.position, 
-            this._camera.position, 
-            this._camera.right, 
+            this._camera.position,
+            this._camera.position,
+            this._camera.right,
             right
         );
         vec3.scaleAndAdd(
-            this._camera.position, 
-            this._camera.position, 
-            this._camera.up, 
+            this._camera.position,
+            this._camera.position,
+            this._camera.up,
             up
         );
     }

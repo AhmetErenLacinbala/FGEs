@@ -41,6 +41,7 @@
 export { default as Renderer } from './Renderer';
 export { default as Scene, type RenderData } from './Scene';
 export { default as RenderableObject, RenderType, type RenderableObjectConfig } from './RenderableObject';
+export { default as InstancedMesh, type InstanceConfig, type Submesh } from './InstancedMesh';
 export { default as MeshFactory } from './MeshFactory';
 export { default as MaterialFactory, type MaterialBindGroup } from './MaterialFactory';
 export { default as Transform } from './Transform';

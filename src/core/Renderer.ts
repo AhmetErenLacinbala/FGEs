@@ -3,10 +3,10 @@ import shader from "../view/shaders.wgsl?raw";
 import billboardShader from "../view/billboard.wgsl?raw";
 import terrainShader from "../view/terrainShader.wgsl?raw";
 import pickingShader from "../view/pickingShader.wgsl?raw";
-import decalShader from "../view/decalShader.wgsl?raw";
 import { RenderData } from "./Scene";
 import { STANDARD_BUFFER_LAYOUT } from "./MeshData";
 import { RenderType } from "./RenderableObject";
+import InstancedMesh from "./InstancedMesh";
 
 /**
  * Renderer -  WebGPU renderer
@@ -27,8 +27,6 @@ export default class Renderer {
     pipeline!: GPURenderPipeline;
     billboardPipeline!: GPURenderPipeline;
     terrainPipeline!: GPURenderPipeline;
-    terrainDepthPipeline!: GPURenderPipeline;  // For depth pre-pass
-    decalPipeline!: GPURenderPipeline;
     frameGroupLayout!: GPUBindGroupLayout;
     materialGroupLayout!: GPUBindGroupLayout;
     terrainMaterialGroupLayout!: GPUBindGroupLayout;
@@ -48,21 +46,14 @@ export default class Renderer {
     depthStencilView!: GPUTextureView;
     depthStencilAttachment!: GPURenderPassDepthStencilAttachment;
 
-    // Sampleable depth for decals
-    depthTexture!: GPUTexture;
-    depthTextureView!: GPUTextureView;
-
-    // Decal system
-    decalBindGroupLayout!: GPUBindGroupLayout;
-    decalBoundsBuffer!: GPUBuffer;
-    decalBindGroup!: GPUBindGroup;
-    activeDecals: { corners: vec3[], color: [number, number, number, number] }[] = [];
-
     // Picking
     pickingPipeline!: GPURenderPipeline;
     pickingTexture!: GPUTexture;
     pickingDepthTexture!: GPUTexture;
     pickingReadBuffer!: GPUBuffer;
+
+    // Instanced mesh bind group cache
+    private instancedBindGroups: WeakMap<InstancedMesh, GPUBindGroup> = new WeakMap();
 
     constructor(canvas: HTMLCanvasElement) {
         this.canvas = canvas;
@@ -73,7 +64,6 @@ export default class Renderer {
         this.setupBindGroupLayouts();
         this.setupBuffers();
         this.setupDepthBuffer();
-        this.setupDecalSystem();
         this.setupPipeline();
         this.setupBindGroup();
         this.setupPicking();
@@ -221,102 +211,6 @@ export default class Renderer {
         };
     }
 
-    private setupDecalSystem(): void {
-        // Create sampleable depth texture (depth32float can be sampled)
-        this.depthTexture = this.device.createTexture({
-            size: { width: this.canvas.width, height: this.canvas.height },
-            format: "depth32float",
-            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
-        });
-        this.depthTextureView = this.depthTexture.createView();
-
-        // Decal bind group layout: depth texture + inverse VP matrix + decal bounds
-        this.decalBindGroupLayout = this.device.createBindGroupLayout({
-            entries: [
-                {
-                    binding: 0,
-                    visibility: GPUShaderStage.FRAGMENT,
-                    texture: { sampleType: "depth" }
-                },
-                {
-                    binding: 1,
-                    visibility: GPUShaderStage.FRAGMENT,
-                    buffer: { type: "uniform" } // Decal data: invViewProj, bounds, color
-                }
-            ]
-        });
-
-        // Decal bounds buffer: invViewProj (64) + 4 corners (64) + color (16) = 144 bytes
-        this.decalBoundsBuffer = this.device.createBuffer({
-            size: 144,
-            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-        });
-
-        // Create decal bind group
-        this.decalBindGroup = this.device.createBindGroup({
-            layout: this.decalBindGroupLayout,
-            entries: [
-                { binding: 0, resource: this.depthTextureView },
-                { binding: 1, resource: { buffer: this.decalBoundsBuffer } }
-            ]
-        });
-    }
-
-    /**
-     * Add a decal projection from 4 corner points
-     * Corners are automatically sorted into counter-clockwise order
-     */
-    addDecal(corners: vec3[], color: [number, number, number, number] = [1, 0, 0, 0.5]): void {
-        if (corners.length !== 4) {
-            console.error(`Decal requires exactly 4 corners, got ${corners.length}`);
-            return;
-        }
-
-        // Sort corners into counter-clockwise order
-        const sorted = this.sortCornersCounterClockwise(corners);
-
-        this.activeDecals.push({
-            corners: sorted,
-            color
-        });
-
-        console.log(`🎯 Decal added with 4 corners (sorted CCW):`);
-        sorted.forEach((c, i) => {
-            console.log(`   Corner ${i}: X=${c[0].toFixed(2)}, Y=${c[1].toFixed(2)}, Z=${c[2].toFixed(2)}`);
-        });
-    }
-
-    /**
-     * Sort 4 corner points into counter-clockwise order around their centroid
-     */
-    private sortCornersCounterClockwise(corners: vec3[]): vec3[] {
-        // Calculate centroid
-        let cx = 0, cz = 0;
-        for (const c of corners) {
-            cx += c[0];
-            cz += c[2];
-        }
-        cx /= 4;
-        cz /= 4;
-
-        // Calculate angle from centroid for each corner and sort
-        const withAngles = corners.map(c => ({
-            corner: vec3.clone(c),
-            angle: Math.atan2(c[2] - cz, c[0] - cx)
-        }));
-
-        // Sort by angle (counter-clockwise)
-        withAngles.sort((a, b) => a.angle - b.angle);
-
-        return withAngles.map(w => w.corner);
-    }
-
-    /**
-     * Clear all decals
-     */
-    clearDecals(): void {
-        this.activeDecals = [];
-    }
 
     private setupPipeline(): void {
         // Standard pipeline
@@ -391,66 +285,6 @@ export default class Renderer {
             depthStencil: this.depthStencilState
         });
 
-        // Terrain depth-only pipeline (for decal depth pre-pass)
-        // Uses depth32float format so it can be sampled by decal shader
-        this.terrainDepthPipeline = this.device.createRenderPipeline({
-            layout: terrainPipelineLayout,
-            vertex: {
-                module: this.device.createShaderModule({ code: terrainShader }),
-                entryPoint: "vs_main",
-                buffers: [STANDARD_BUFFER_LAYOUT]
-            },
-            fragment: {
-                module: this.device.createShaderModule({ code: terrainShader }),
-                entryPoint: "fs_main",
-                targets: []  // No color output for depth pre-pass
-            },
-            primitive: {
-                topology: 'triangle-list'
-            },
-            depthStencil: {
-                format: "depth32float",
-                depthWriteEnabled: true,
-                depthCompare: "less-equal"
-            }
-        });
-
-        // Decal pipeline - fullscreen pass that reads depth and projects decals
-        const decalPipelineLayout = this.device.createPipelineLayout({
-            bindGroupLayouts: [this.decalBindGroupLayout]
-        });
-
-        this.decalPipeline = this.device.createRenderPipeline({
-            layout: decalPipelineLayout,
-            vertex: {
-                module: this.device.createShaderModule({ code: decalShader }),
-                entryPoint: "vs_main",
-                buffers: [] // Fullscreen triangle generated in shader
-            },
-            fragment: {
-                module: this.device.createShaderModule({ code: decalShader }),
-                entryPoint: "fs_main",
-                targets: [{
-                    format: this.format,
-                    blend: {
-                        color: {
-                            srcFactor: 'src-alpha',
-                            dstFactor: 'one-minus-src-alpha',
-                            operation: 'add'
-                        },
-                        alpha: {
-                            srcFactor: 'one',
-                            dstFactor: 'one-minus-src-alpha',
-                            operation: 'add'
-                        }
-                    }
-                }]
-            },
-            primitive: {
-                topology: 'triangle-list'
-            }
-            // No depthStencil - we read depth as texture
-        });
     }
 
     private setupBindGroup(): void {
@@ -520,6 +354,25 @@ export default class Renderer {
     }
 
     /**
+     * Get or create a frame bind group for an InstancedMesh
+     * Each InstancedMesh has its own instance buffer
+     */
+    private getInstancedBindGroup(mesh: InstancedMesh): GPUBindGroup {
+        let bindGroup = this.instancedBindGroups.get(mesh);
+        if (!bindGroup) {
+            bindGroup = this.device.createBindGroup({
+                layout: this.frameGroupLayout,
+                entries: [
+                    { binding: 0, resource: { buffer: this.uniformBuffer } },
+                    { binding: 1, resource: { buffer: mesh.getInstanceBuffer() } }
+                ]
+            });
+            this.instancedBindGroups.set(mesh, bindGroup);
+        }
+        return bindGroup;
+    }
+
+    /**
      * Render all objects in the scene
      */
     render(renderData: RenderData): void {
@@ -539,12 +392,6 @@ export default class Renderer {
             0.1,
             100
         );
-
-        // Calculate inverse view-projection for decals
-        const viewProj = mat4.create();
-        mat4.multiply(viewProj, projection, viewTransform as mat4);
-        const invViewProj = mat4.create();
-        mat4.invert(invViewProj, viewProj);
 
         // Upload view and projection matrices
         this.device.queue.writeBuffer(this.uniformBuffer, 0, new Float32Array(viewTransform));
@@ -567,32 +414,7 @@ export default class Renderer {
         const terrainObjects = objects.filter(obj => obj.renderType === RenderType.Terrain);
         const billboardObjects = objects.filter(obj => obj.renderType === RenderType.Billboard);
 
-        // ========== PASS 1: Depth pre-pass (for decal projection) ==========
-        if (this.activeDecals.length > 0 && terrainObjects.length > 0) {
-            const depthPass = commandEncoder.beginRenderPass({
-                colorAttachments: [],
-                depthStencilAttachment: {
-                    view: this.depthTextureView,
-                    depthClearValue: 1.0,
-                    depthLoadOp: 'clear',
-                    depthStoreOp: 'store'
-                }
-            });
-
-            depthPass.setBindGroup(0, this.frameBindGroup);
-            depthPass.setPipeline(this.terrainDepthPipeline);
-
-            terrainObjects.forEach((obj) => {
-                const instanceIndex = objects.indexOf(obj);
-                depthPass.setBindGroup(1, obj.material);
-                obj.bind(depthPass);
-                obj.draw(depthPass, instanceIndex);
-            });
-
-            depthPass.end();
-        }
-
-        // ========== PASS 2: Main render pass ==========
+        // ========== Main render pass ==========
         const textureView = this.context.getCurrentTexture().createView();
         const renderPass = commandEncoder.beginRenderPass({
             colorAttachments: [{
@@ -639,68 +461,37 @@ export default class Renderer {
             });
         }
 
-        renderPass.end();
+        // Render instanced meshes (one draw call per submesh, all instances per call)
+        const instancedMeshes = renderData.instancedMeshes ?? [];
+        for (const instancedMesh of instancedMeshes) {
+            if (instancedMesh.getInstanceCount() === 0) continue;
 
-        // ========== PASS 3: Decal projection pass ==========
-        if (this.activeDecals.length > 0) {
-            for (const decal of this.activeDecals) {
-                // Upload decal data: invViewProj (64) + 4 corners (64) + color (16) = 144 bytes = 36 floats
-                const decalData = new Float32Array(36);
-                decalData.set(invViewProj, 0);  // 16 floats
-
-                // Corner 0 (XZ stored in xy of vec4)
-                decalData[16] = decal.corners[0][0];  // X
-                decalData[17] = decal.corners[0][2];  // Z
-                decalData[18] = 0;
-                decalData[19] = 0;
-
-                // Corner 1
-                decalData[20] = decal.corners[1][0];
-                decalData[21] = decal.corners[1][2];
-                decalData[22] = 0;
-                decalData[23] = 0;
-
-                // Corner 2
-                decalData[24] = decal.corners[2][0];
-                decalData[25] = decal.corners[2][2];
-                decalData[26] = 0;
-                decalData[27] = 0;
-
-                // Corner 3
-                decalData[28] = decal.corners[3][0];
-                decalData[29] = decal.corners[3][2];
-                decalData[30] = 0;
-                decalData[31] = 0;
-
-                console.log(`📐 Decal corners being rendered:`,
-                    `C0(${decalData[16].toFixed(2)}, ${decalData[17].toFixed(2)})`,
-                    `C1(${decalData[20].toFixed(2)}, ${decalData[21].toFixed(2)})`,
-                    `C2(${decalData[24].toFixed(2)}, ${decalData[25].toFixed(2)})`,
-                    `C3(${decalData[28].toFixed(2)}, ${decalData[29].toFixed(2)})`
-                );
-
-                // Color
-                decalData[32] = decal.color[0];
-                decalData[33] = decal.color[1];
-                decalData[34] = decal.color[2];
-                decalData[35] = decal.color[3];
-
-                this.device.queue.writeBuffer(this.decalBoundsBuffer, 0, decalData);
-
-                const decalPass = commandEncoder.beginRenderPass({
-                    colorAttachments: [{
-                        view: textureView,
-                        loadOp: 'load',
-                        storeOp: 'store'
-                    }]
-                });
-
-                decalPass.setPipeline(this.decalPipeline);
-                decalPass.setBindGroup(0, this.decalBindGroup);
-                decalPass.draw(3);
-                decalPass.end();
+            // Select pipeline based on render type
+            switch (instancedMesh.renderType) {
+                case RenderType.Billboard:
+                    renderPass.setPipeline(this.billboardPipeline);
+                    break;
+                case RenderType.Terrain:
+                    renderPass.setPipeline(this.terrainPipeline);
+                    break;
+                default:
+                    renderPass.setPipeline(this.pipeline);
             }
+
+            // Use instanced mesh's own bind group (with its own instance buffer)
+            const instancedBindGroup = this.getInstancedBindGroup(instancedMesh);
+            renderPass.setBindGroup(0, instancedBindGroup);
+
+            // Draw all submeshes (each submesh = 1 draw call with all instances)
+            instancedMesh.drawAll(renderPass);
         }
+
+        // Restore default bind group for any subsequent operations
+        if (instancedMeshes.length > 0) {
+            renderPass.setBindGroup(0, this.frameBindGroup);
+        }
+
+        renderPass.end();
 
         this.device.queue.submit([commandEncoder.finish()]);
     }
@@ -711,9 +502,6 @@ export default class Renderer {
     resize(): void {
         this.depthStencilBuffer.destroy();
         this.setupDepthBuffer();
-
-        this.depthTexture?.destroy();
-        this.setupDecalSystem();
 
         this.pickingTexture?.destroy();
         this.pickingDepthTexture?.destroy();

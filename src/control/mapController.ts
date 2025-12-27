@@ -409,6 +409,10 @@ export default class MapController {
             );
 
             // Create terrain object
+            for (const object of this.app.scene.getAll()) {
+                this.app.scene.removeById(object.id)
+            }
+
             const terrain = new RenderableObject({
                 mesh: terrainMesh,
                 material: terrainMaterial.bindGroup,
@@ -419,7 +423,6 @@ export default class MapController {
                     vec3.fromValues(1, 1, 1)
                 )
             });
-
 
 
             this.app.scene.add(terrain);

@@ -10,6 +10,7 @@ import {
     Renderer,
     Scene,
     RenderableObject,
+    InstancedMesh,
     MeshFactory,
     MaterialFactory,
     Transform,
@@ -35,6 +36,7 @@ export default class App {
     cameraControlActive: boolean = false;
 
     billboardPositions: vec3[] = [];
+    quadCreated: boolean = false;  // Once quad is created, no more billboards
 
     constructor(canvas: HTMLCanvasElement) {
         this.canvas = canvas;
@@ -182,7 +184,70 @@ export default class App {
             this.scene.add(triangle);
         }
 
-        console.log(`✅ Scene initialized with ${this.scene.count} objects`);
+        // Example 3: GPU Instancing - 100 quads 
+        /*const instancedQuadMesh = MeshFactory.quad(device, 0.5);
+        const instancedMaterial = await MaterialFactory.fromColor(device, [0.2, 0.8, 0.3, 1], layout);
+
+        const instancedQuads = new InstancedMesh({
+            device,
+            mesh: instancedQuadMesh,
+            material: instancedMaterial.bindGroup,
+            maxInstances: 1000
+        });*/
+
+        // Scatter 100 quads randomly
+        /* for (let i = 0; i < 100; i++) {
+             instancedQuads.addInstance({
+                 position: [
+                     (Math.random() - 0.5) * 20,  // X: -10 to 10
+                     Math.random() * 5,            // Y: 0 to 5
+                     (Math.random() - 0.5) * 20   // Z: -10 to 10
+                 ],
+                 rotation: [
+                     Math.random() * 360,
+                     Math.random() * 360,
+                     Math.random() * 360
+                 ],
+                 scale: [0.3, 0.3, 0.3]
+             });
+         }
+ 
+         instancedQuads.updateBuffer();
+         this.scene.addInstanced(instancedQuads);
+ 
+         // Submesh support
+         const instPanelMeshes = await MeshFactory.fromGLTF(device, "models/panel.glb");
+         const instPanelMaterial = await MaterialFactory.fromTexture(device, "img/panelbaked.png", layout);
+ 
+         const instancedPanels = new InstancedMesh({
+             device,
+             submeshes: instPanelMeshes.map(mesh => ({
+                 mesh,
+                 material: instPanelMaterial.bindGroup
+             })),
+             maxInstances: 10000
+         });
+
+         for (let i = 0; i < 5000; i++) {
+             instancedPanels.addInstance({
+                 position: [
+                     (Math.random() - 0.5) * 20,
+                     Math.random() * 5,
+                     (Math.random() - 0.5) * 20
+                 ],
+                 rotation: [
+                     Math.random() * 360,
+                     Math.random() * 360,
+                     Math.random() * 360
+                 ],
+                 scale: [0.01, 0.01, 0.01]
+             });
+         }
+ 
+         instancedPanels.updateBuffer();
+         this.scene.addInstanced(instancedPanels);*/
+
+
     }
 
     /**
@@ -258,30 +323,67 @@ export default class App {
     async handleClick(event: MouseEvent): Promise<void> {
         if (this.cameraControlActive) return;
 
+        // Quad already created - no more billboards allowed
+        if (this.quadCreated) {
+            console.log(`⛔ Quad already created, no more billboards`);
+            return;
+        }
+
         const rect = this.canvas.getBoundingClientRect();
         const x = event.clientX - rect.left;
         const y = event.clientY - rect.top;
 
+        // Get world position from picking
         this.renderer.renderPickingPass(this.scene.getRenderData());
         const worldPos = await this.renderer.readWorldPosition(x, y);
 
-        if (worldPos && this.billboardPositions.length < 4) {
-            this.billboardPositions.push(worldPos);
-            await this.spawnBillboard(worldPos);
+        if (!worldPos) {
+            console.log(`❌ Click at (${x.toFixed(0)}, ${y.toFixed(0)}) - no terrain hit`);
+            return;
         }
+
+        // Spawn billboard at clicked position
+        this.billboardPositions.push(vec3.clone(worldPos));
+        await this.spawnBillboard(worldPos);
+        console.log(`📍 Billboard ${this.billboardPositions.length}/4 at (${worldPos[0].toFixed(2)}, ${worldPos[1].toFixed(2)}, ${worldPos[2].toFixed(2)})`);
+
+        // When 4 billboards placed, create quad
         if (this.billboardPositions.length === 4) {
-            this.createTerrainDecal(this.billboardPositions);
-            this.billboardPositions = [];
+            await this.createQuadFromPoints(this.billboardPositions);
+            this.quadCreated = true;
+            console.log(`✅ Quad created! No more billboards allowed.`);
         }
     }
 
     private billboardMaterial: { bindGroup: GPUBindGroup } | null = null;
+    private quadMaterial: { bindGroup: GPUBindGroup } | null = null;
 
     /**
-     * Create a decal that projects onto terrain using depth buffer
+     * Create a quad from 4 corner points using standard shader
      */
-    createTerrainDecal(corners: vec3[]): void {
-        this.renderer.addDecal(corners, [1, 0, 0, 0.5]);
+    async createQuadFromPoints(corners: vec3[]): Promise<void> {
+        console.log(`🔷 createQuadFromPoints called with:`, corners.map(c => `(${c[0].toFixed(2)}, ${c[1].toFixed(2)}, ${c[2].toFixed(2)})`));
+
+        const device = this.renderer.getDevice();
+        const layout = this.renderer.getMaterialGroupLayout();
+
+        if (!this.quadMaterial) {
+            this.quadMaterial = await MaterialFactory.fromColor(device, [1, 0.2, 0.2, 1], layout);
+        }
+
+        // Create quad mesh from the 4 points
+        const mesh = MeshFactory.customQuad(device, corners);
+        console.log(`   Mesh created: ${mesh.vertexCount} vertices, ${mesh.indexCount} indices`);
+
+        const quad = new RenderableObject({
+            mesh,
+            material: this.quadMaterial.bindGroup,
+            renderType: RenderType.Standard,
+            transform: new Transform()
+        });
+
+        this.scene.add(quad);
+        console.log(`✅ Quad added to scene`);
     }
 
     async spawnBillboard(position: vec3): Promise<void> {
