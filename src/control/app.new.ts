@@ -106,7 +106,7 @@ export default class App {
         const panelMeshes = await MeshFactory.fromGLTF(device, "models/panel.glb");
         const panelMaterial = await MaterialFactory.fromTexture(device, "img/panelbaked.png", layout);
 
-        // Add all panel submeshes
+        // Add panel submeshes
         for (const mesh of panelMeshes) {
             const panel = new RenderableObject({
                 mesh,
@@ -165,7 +165,7 @@ export default class App {
         });
         this.scene.add(billboard);
 
-        // Example 2: Create spinning triangles
+        //Create spinning triangles
         for (let y = -5; y <= 5; y++) {
             const triangleMesh = MeshFactory.triangle(device);
             const triangleMaterial = await MaterialFactory.fromTexture(device, "img/floor.jpg", layout);
@@ -184,7 +184,7 @@ export default class App {
             this.scene.add(triangle);
         }
 
-        // Example 3: GPU Instancing - 100 quads 
+        //Instancing - 100 quads 
         /*const instancedQuadMesh = MeshFactory.quad(device, 0.5);
         const instancedMaterial = await MaterialFactory.fromColor(device, [0.2, 0.8, 0.3, 1], layout);
 
@@ -254,17 +254,14 @@ export default class App {
      * Main render loop
      */
     run = (): void => {
-        // Update movement
         this.scene.moveCamera(this.forwardsAmount, this.rightAmount, this.upAmount);
-
-        // Update scene
         this.scene.update();
-
-        // Render
         this.renderer.render(this.scene.getRenderData());
-
         requestAnimationFrame(this.run);
     }
+
+
+
 
     // Input handlers
     handleKeyPress(event: JQuery.KeyDownEvent): void {

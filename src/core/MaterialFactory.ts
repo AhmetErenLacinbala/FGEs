@@ -471,7 +471,7 @@ export default class MaterialFactory {
             ]
         });
 
-        console.log(`🎨 Terrain material created: GHI ${ghiTextureData.width}x${ghiTextureData.height}, Satellite: ${satelliteTextureData.data ? 'loaded' : 'placeholder'}`);
+        console.log(`Terrain material created: GHI ${ghiTextureData.width}x${ghiTextureData.height}, Satellite: ${satelliteTextureData.data ? 'loaded' : 'placeholder'}`);
 
         return {
             bindGroup,

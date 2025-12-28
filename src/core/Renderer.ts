@@ -164,7 +164,7 @@ export default class Renderer {
 
         // Storage buffer for object model matrices
         this.objectBuffer = this.device.createBuffer({
-            size: 64 * 1024, // 1024 objects max
+            size: 64 * 1024, // 1024 object
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
         });
 
