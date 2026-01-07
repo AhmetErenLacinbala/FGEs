@@ -241,13 +241,9 @@ export default class MeshFactory {
         for (let row = 0; row < rows; row++) {
             for (let col = 0; col < cols; col++) {
                 const idx = (row * cols + col) * 5;
-
-                // Map col/row to -halfSize..+halfSize (e.g., -10 to +10)
                 const x = (col / (cols - 1)) * targetSize - halfSize;
-                const z = (row / (rows - 1)) * targetSize - halfSize;
-
-                // Use real height value, just scaled
-                const y = heightData[row * cols + col] * heightScale;
+                const y = (row / (rows - 1)) * targetSize - halfSize;
+                const z = heightData[row * cols + col] * heightScale;
 
                 vertices[idx + 0] = x;
                 vertices[idx + 1] = y;

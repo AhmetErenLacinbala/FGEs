@@ -36,6 +36,10 @@ export default class Renderer {
     blendSettingsBuffer!: GPUBuffer;
     private _satelliteOpacity: number = 0.1;
 
+    // Selection Buffer for decal
+    selectionQuadBuffer!: GPUBuffer;
+    selectionTime: number = 0;
+
     // Buffers
     uniformBuffer!: GPUBuffer;
     objectBuffer!: GPUBuffer;
@@ -150,6 +154,11 @@ export default class Renderer {
                     binding: 4,
                     visibility: GPUShaderStage.FRAGMENT,
                     buffer: {} // Blend settings uniform
+                },
+                {
+                    binding: 5,
+                    visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+                    buffer: { type: "uniform" }
                 }
             ]
         });
@@ -161,6 +170,26 @@ export default class Renderer {
             size: 64 * 2, // 2 mat4s
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
         });
+
+        // Selection Buffer for decal
+        this.selectionQuadBuffer = this.device.createBuffer({
+            size: 48,
+            /*
+            4 vec2f32 points 32 bytes
+            f32 enabled 4 bytes
+            4 byte padding
+            2 f32 pad 16 bytes
+            total 48 bytes
+            */
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+        });
+
+        // Initialize selection quad buffer
+        this.device.queue.writeBuffer(
+            this.selectionQuadBuffer,
+            0,
+            new Float32Array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])  // 12 floats
+        );
 
         // Storage buffer for object model matrices
         this.objectBuffer = this.device.createBuffer({
@@ -318,6 +347,7 @@ export default class Renderer {
         return this.blendSettingsBuffer;
     }
 
+
     /**
      * Update the satellite opacity (0.0 - 1.0)
      */
@@ -380,6 +410,8 @@ export default class Renderer {
             console.error("Renderer not initialized");
             return;
         }
+        this.selectionTime += 0.05;
+        this.updateSelectionTime();
 
         const { viewTransform, objects } = renderData;
 
@@ -632,5 +664,35 @@ export default class Renderer {
     getDevice(): GPUDevice {
         return this.device;
     }
+
+    updateSelectionQuad(points: vec3[] | null): void {
+        console.log('updateSelectionQuad called with:', points);
+        const data = new Float32Array(12);
+        if (points && points.length === 4) {
+            data[0] = points[0][0];
+            data[1] = points[0][1];
+            data[2] = points[1][0];
+            data[3] = points[1][1];
+            data[4] = points[2][0];
+            data[5] = points[2][1];
+            data[6] = points[3][0];
+            data[7] = points[3][1];
+            data[8] = 1.0; //enabled
+            data[9] = this.selectionTime;
+            //9-11 padding
+        }
+        this.device.queue.writeBuffer(this.selectionQuadBuffer, 0, data);
+    }
+
+    private updateSelectionTime(): void {
+        this.selectionTime += 0.05;
+        const timeData = new Float32Array([this.selectionTime]);
+        this.device.queue.writeBuffer(this.selectionQuadBuffer, 36, timeData);
+    }
+
+    getSelectionQuadBuffer(): GPUBuffer {
+        return this.selectionQuadBuffer;
+    }
+
 }
 

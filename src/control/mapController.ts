@@ -405,7 +405,8 @@ export default class MapController {
                 },
                 { data: satelliteImage },
                 terrainLayout,
-                blendBuffer
+                blendBuffer,
+                this.app.renderer.getSelectionQuadBuffer()
             );
 
             // Create terrain object
@@ -419,7 +420,7 @@ export default class MapController {
                 renderType: RenderType.Terrain,
                 transform: new Transform(
                     vec3.fromValues(0, 0, -5),
-                    vec3.fromValues(90, 0, 0),
+                    vec3.fromValues(0, 0, 0),
                     vec3.fromValues(1, 1, 1)
                 )
             });

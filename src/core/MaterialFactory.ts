@@ -365,7 +365,8 @@ export default class MaterialFactory {
             data: ImageBitmap | null;
         },
         bindGroupLayout: GPUBindGroupLayout,
-        blendSettingsBuffer: GPUBuffer
+        blendSettingsBuffer: GPUBuffer,
+        selectionQuadBuffer: GPUBuffer
     ): MaterialBindGroup {
         // Create GHI texture (heatmap)
         const ghiPixelData = new Uint8Array(ghiTextureData.width * ghiTextureData.height * 4);
@@ -467,7 +468,8 @@ export default class MaterialFactory {
                 { binding: 1, resource: ghiSampler },
                 { binding: 2, resource: satelliteView },
                 { binding: 3, resource: satelliteSampler },
-                { binding: 4, resource: { buffer: blendSettingsBuffer } }
+                { binding: 4, resource: { buffer: blendSettingsBuffer }, },
+                { binding: 5, resource: { buffer: selectionQuadBuffer } }
             ]
         });
 

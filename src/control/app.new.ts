@@ -346,7 +346,8 @@ export default class App {
 
         // When 4 billboards placed, create quad
         if (this.billboardPositions.length === 4) {
-            await this.createQuadFromPoints(this.billboardPositions);
+            //await this.createQuadFromPoints(this.billboardPositions);
+            this.renderer.updateSelectionQuad(this.billboardPositions);
             this.quadCreated = true;
             console.log(`✅ Quad created! No more billboards allowed.`);
         }
@@ -354,6 +355,8 @@ export default class App {
 
     private billboardMaterial: { bindGroup: GPUBindGroup } | null = null;
     private quadMaterial: { bindGroup: GPUBindGroup } | null = null;
+
+
 
     /**
      * Create a quad from 4 corner points using standard shader

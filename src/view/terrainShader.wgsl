@@ -17,6 +17,17 @@ struct BlendSettings {
     _padding3: f32,
 };
 
+struct SelectionQuad {
+    p0: vec2<f32>,
+    p1: vec2<f32>,
+    p2: vec2<f32>,
+    p3: vec2<f32>,
+    enabled: f32,
+    time: f32,
+    _pad2: f32,
+    _pad3: f32
+}
+
 // Group 0: Frame data (shared)
 @binding(0) @group(0) var<uniform> transformUBO: TransformData;
 @binding(1) @group(0) var<storage, read> objects: ObjectData;
@@ -27,10 +38,11 @@ struct BlendSettings {
 @binding(2) @group(1) var satelliteTexture: texture_2d<f32>;
 @binding(3) @group(1) var satelliteSampler: sampler;
 @binding(4) @group(1) var<uniform> blendSettings: BlendSettings;
-
+@binding(5) @group(1) var<uniform> selectionQuad: SelectionQuad;
 struct Fragment {
     @builtin(position) Position: vec4<f32>,
     @location(0) TexCoord: vec2<f32>,
+    @location(1) WorldPos: vec3<f32>,
 };
 
 @vertex
@@ -40,20 +52,56 @@ fn vs_main(
     @location(1) vertexTexCoord: vec2<f32>
 ) -> Fragment {
     var output: Fragment;
-    output.Position = transformUBO.projection * transformUBO.view * objects.model[ID] * vec4<f32>(vertexPosition, 1.0);
+    let worldPos = objects.model[ID] * vec4<f32>(vertexPosition, 1.0);
+    output.Position = transformUBO.projection * transformUBO.view * worldPos;
     output.TexCoord = vertexTexCoord;
+    output.WorldPos = worldPos.xyz;
     return output;
 }
 
+
+fn sign2D(p1: vec2<f32>, p2: vec2<f32>, p3: vec2<f32>) -> f32 {
+    return (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);
+}
+
+fn pointInTriangle(pt: vec2<f32>, v1: vec2<f32>, v2: vec2<f32>, v3: vec2<f32>) -> bool {
+    let d1 = sign2D(pt, v1, v2);
+    let d2 = sign2D(pt, v2, v3);
+    let d3 = sign2D(pt, v3, v1);
+    
+    let hasNeg = (d1 < 0.0) || (d2 < 0.0) || (d3 < 0.0);
+    let hasPos = (d1 > 0.0) || (d2 > 0.0) || (d3 > 0.0);
+    
+    return !(hasNeg && hasPos);
+}
+
+fn isInsideSelectionQuad(pt: vec2<f32>) -> bool {
+    if (selectionQuad.enabled < 0.5) {
+        return false;
+    }
+    
+    let inTri1 = pointInTriangle(pt, selectionQuad.p0, selectionQuad.p1, selectionQuad.p2);
+    let inTri2 = pointInTriangle(pt, selectionQuad.p0, selectionQuad.p2, selectionQuad.p3);
+    
+    return inTri1 || inTri2;
+}
+
 @fragment
-fn fs_main(@location(0) TexCoord: vec2<f32>) -> @location(0) vec4<f32> {
+fn fs_main(@location(0) TexCoord: vec2<f32>, @location(1) WorldPos: vec3<f32>) -> @location(0) vec4<f32> {
     // Sample both textures
     let ghiColor = textureSample(ghiTexture, ghiSampler, TexCoord);
     let satelliteColor = textureSample(satelliteTexture, satelliteSampler, TexCoord);
     
-    // Blend: GHI * (1 - opacity) + Satellite * opacity
-    let blendedColor = mix(ghiColor, satelliteColor, blendSettings.satelliteOpacity);
+    var finalColor = mix(ghiColor, satelliteColor, blendSettings.satelliteOpacity);
+
+
+    // Selection highlight
+    let pt = vec2<f32>(WorldPos.x, WorldPos.y);
+    if (isInsideSelectionQuad(pt)) {
+        let highlightColor = vec4<f32>(1.0, 0.9, 0.2, 1.0);
+        finalColor = mix(finalColor, highlightColor, (sin(selectionQuad.time )+ 1)* 0.5);
+    }
     
-    return blendedColor;
+    return finalColor;
 }
 
