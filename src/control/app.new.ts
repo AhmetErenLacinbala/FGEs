@@ -14,7 +14,8 @@ import {
     MeshFactory,
     MaterialFactory,
     Transform,
-    RenderType
+    RenderType,
+    MeshData
 } from "../core";
 
 export default class App {
@@ -37,6 +38,14 @@ export default class App {
 
     billboardPositions: vec3[] = [];
     quadCreated: boolean = false;  // Once quad is created, no more billboards
+
+    // Terrain compute info
+    private terrainVertexBuffer: GPUBuffer | null = null;
+    private terrainVertexCount: number = 0;
+
+    private panelMeshes: MeshData[] | null = null;
+    private panelMaterial: { bindGroup: GPUBindGroup } | null = null;
+    private panelInstances: InstancedMesh | null = null;
 
     constructor(canvas: HTMLCanvasElement) {
         this.canvas = canvas;
@@ -68,7 +77,13 @@ export default class App {
 
         await this.renderer.init();
         await this.createInitialObjects();
+
+        this.panelMeshes = await MeshFactory.fromGLTF(this.renderer.getDevice(), "models/panel.glb");
+        this.panelMaterial = await MaterialFactory.fromTexture(this.renderer.getDevice(), "img/panelbaked.png", this.renderer.getMaterialGroupLayout());
+
+
     }
+
 
     private resizeCanvas(): void {
         const container = this.canvas.parentElement;
@@ -350,6 +365,21 @@ export default class App {
             this.renderer.updateSelectionQuad(this.billboardPositions);
             this.quadCreated = true;
             console.log(`✅ Quad created! No more billboards allowed.`);
+
+            // Run compute shader to extract selected vertices
+            if (this.terrainVertexBuffer && this.terrainVertexCount > 0) {
+                const selectedVertices = await this.renderer.runSelectionCompute(
+                    this.terrainVertexBuffer,
+                    this.terrainVertexCount
+                );
+
+                if (selectedVertices) {
+                    //console.log(`Compute: Selected vertices:`, selectedVertices.length / 3);
+                    // İleride burada object placement yapılacak
+                    await this.createPanelInstances(selectedVertices);
+                }
+            }
+
         }
     }
 
@@ -410,5 +440,60 @@ export default class App {
         this.scene.add(billboard);
         console.log(` Billboard at (${position[0].toFixed(2)}, ${position[1].toFixed(2)}, ${position[2].toFixed(2)})`);
     }
+
+    setTerrainComputeInfo(vertexBuffer: GPUBuffer, vertexCount: number): void {
+        this.terrainVertexBuffer = vertexBuffer;
+        this.terrainVertexCount = vertexCount;
+        console.log(`Terrain compute info set: ${vertexCount} vertices`);
+    }
+
+    private async createPanelInstances(vertices: Float32Array): Promise<void> {
+        if (!this.panelMeshes || !this.panelMaterial) {
+            console.error("Panel mesh or material not loaded");
+            return;
+        }
+
+        const device = this.renderer.getDevice();
+        const vertexCount = vertices.length / 3;
+
+        // Remove old instances if exists
+        if (this.panelInstances) {
+            this.scene.removeInstanced(this.panelInstances);
+            this.panelInstances.destroy();
+        }
+
+        // Create new instanced mesh
+        this.panelInstances = new InstancedMesh({
+            device,
+            submeshes: this.panelMeshes.map(mesh => ({
+                mesh,
+                material: this.panelMaterial!.bindGroup
+            })),
+            maxInstances: Math.max(vertexCount, 1000)
+        });
+
+        // Add instances at selected positions
+        // Skip some vertices for performance (every Nth vertex)
+        const skipFactor = Math.max(1, Math.floor(vertexCount / 500)); // Max ~500 panels
+
+        for (let i = 0; i < vertexCount; i += skipFactor) {
+            const x = vertices[i * 3];
+            const y = vertices[i * 3 + 1];
+            const z = vertices[i * 3 + 2];
+
+            this.panelInstances.addInstance({
+                position: [x, y, z - 4.9],
+                rotation: [45, 0, 0],
+                scale: [0.0003, 0.0003, 0.0003]  // Panel çok büyükse küçült
+            });
+        }
+
+        this.panelInstances.updateBuffer();
+        this.scene.addInstanced(this.panelInstances);
+
+        console.log(`✅ Created ${this.panelInstances.getInstanceCount()} panel instances`);
+    }
 }
+
+
 

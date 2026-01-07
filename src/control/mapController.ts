@@ -428,6 +428,11 @@ export default class MapController {
 
             this.app.scene.add(terrain);
 
+            this.app.setTerrainComputeInfo(
+                terrainMesh.vertexBuffer,
+                terrainMesh.vertexCount
+            );
+
             this.showStatus(`✅ Terrain loaded!(${tileData.heightmap.width}x${tileData.heightmap.height})`, 'success');
             console.log('✅ Terrain added to scene');
 

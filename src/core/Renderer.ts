@@ -3,10 +3,12 @@ import shader from "../view/shaders.wgsl?raw";
 import billboardShader from "../view/billboard.wgsl?raw";
 import terrainShader from "../view/terrainShader.wgsl?raw";
 import pickingShader from "../view/pickingShader.wgsl?raw";
+import terrainPickingShader from "../view/terrainPickingShader.wgsl?raw";
 import { RenderData } from "./Scene";
 import { STANDARD_BUFFER_LAYOUT, TERRAIN_BUFFER_LAYOUT } from "./MeshData";
 import { RenderType } from "./RenderableObject";
 import InstancedMesh from "./InstancedMesh";
+import selectionComputeShader from "../view/selectionCompute.wgsl?raw";
 
 /**
  * Renderer -  WebGPU renderer
@@ -52,9 +54,18 @@ export default class Renderer {
 
     // Picking
     pickingPipeline!: GPURenderPipeline;
+    terrainPickingPipeline!: GPURenderPipeline;
     pickingTexture!: GPUTexture;
     pickingDepthTexture!: GPUTexture;
     pickingReadBuffer!: GPUBuffer;
+
+    computePipeline!: GPUComputePipeline;
+    computeCountPipeline!: GPUComputePipeline;
+    computeWritePipeline!: GPUComputePipeline;
+    computeBindGroupLayout!: GPUBindGroupLayout;
+    computeCountBuffer!: GPUBuffer;
+    computeOutputBuffer!: GPUBuffer;
+    computeReadbackBuffer!: GPUBuffer;
 
     // Instanced mesh bind group cache
     private instancedBindGroups: WeakMap<InstancedMesh, GPUBindGroup> = new WeakMap();
@@ -71,6 +82,7 @@ export default class Renderer {
         this.setupPipeline();
         this.setupBindGroup();
         this.setupPicking();
+        this.setupCompute();
     }
 
     private async setupDevice(): Promise<void> {
@@ -547,6 +559,7 @@ export default class Renderer {
             bindGroupLayouts: [this.frameGroupLayout]
         });
 
+        // Standard picking pipeline (5 floats: position + uv)
         this.pickingPipeline = this.device.createRenderPipeline({
             layout: pipelineLayout,
             vertex: {
@@ -567,10 +580,189 @@ export default class Renderer {
             }
         });
 
+        // Terrain picking pipeline (8 floats: position + normal + uv)
+        this.terrainPickingPipeline = this.device.createRenderPipeline({
+            layout: pipelineLayout,
+            vertex: {
+                module: this.device.createShaderModule({ code: terrainPickingShader }),
+                entryPoint: "vs_main",
+                buffers: [TERRAIN_BUFFER_LAYOUT]
+            },
+            fragment: {
+                module: this.device.createShaderModule({ code: terrainPickingShader }),
+                entryPoint: "fs_main",
+                targets: [{ format: 'rgba32float' }]
+            },
+            primitive: { topology: 'triangle-list' },
+            depthStencil: {
+                format: "depth24plus",
+                depthWriteEnabled: true,
+                depthCompare: "less-equal"
+            }
+        });
+
         this.pickingReadBuffer = this.device.createBuffer({
             size: 16,
             usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
         });
+    }
+
+    private setupCompute(): void {
+        // Bind group layout for compute shader
+        this.computeBindGroupLayout = this.device.createBindGroupLayout({
+            entries: [
+                {
+                    binding: 0,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "uniform" }  // SelectionQuad
+                },
+                {
+                    binding: 1,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "read-only-storage" }  // Terrain vertices
+                },
+                {
+                    binding: 2,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "storage" }  // Count buffer (atomic)
+                },
+                {
+                    binding: 3,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "storage" }  // Output vertices
+                }
+            ]
+        });
+
+        // Count buffer (4 bytes for atomic u32)
+        this.computeCountBuffer = this.device.createBuffer({
+            size: 4,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST
+        });
+
+        const computePipelineLayout = this.device.createPipelineLayout({
+            bindGroupLayouts: [this.computeBindGroupLayout]
+        });
+
+        // Count pipeline (Pass 1)
+        this.computeCountPipeline = this.device.createComputePipeline({
+            layout: computePipelineLayout,
+            compute: {
+                module: this.device.createShaderModule({ code: selectionComputeShader }),
+                entryPoint: "count_main"
+            }
+        });
+
+        // Write pipeline (Pass 2)
+        this.computeWritePipeline = this.device.createComputePipeline({
+            layout: computePipelineLayout,
+            compute: {
+                module: this.device.createShaderModule({ code: selectionComputeShader }),
+                entryPoint: "write_main"
+            }
+        });
+
+        console.log("✅ Compute pipelines created");
+
+        // Output buffer - start with space for 10000 vertices (will resize if needed)
+        this.computeOutputBuffer = this.device.createBuffer({
+            size: 10000 * 12,  // 10000 vertices * 3 floats * 4 bytes
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC
+        });
+
+        // Readback buffer for count
+        this.computeReadbackBuffer = this.device.createBuffer({
+            size: 4,
+            usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
+        });
+    }
+
+    /**
+ * Run compute shader to extract vertices inside selection
+ * @param terrainVertexBuffer The terrain's vertex buffer
+ * @param vertexCount Number of vertices in the terrain
+ * @returns Promise<Float32Array> - Selected vertex positions (x,y,z for each)
+ */
+    async runSelectionCompute(terrainVertexBuffer: GPUBuffer, vertexCount: number): Promise<Float32Array | null> {
+        // Reset count to 0
+        this.device.queue.writeBuffer(this.computeCountBuffer, 0, new Uint32Array([0]));
+
+        // Create bind group
+        const bindGroup = this.device.createBindGroup({
+            layout: this.computeBindGroupLayout,
+            entries: [
+                { binding: 0, resource: { buffer: this.selectionQuadBuffer } },
+                { binding: 1, resource: { buffer: terrainVertexBuffer } },
+                { binding: 2, resource: { buffer: this.computeCountBuffer } },
+                { binding: 3, resource: { buffer: this.computeOutputBuffer } }
+            ]
+        });
+
+        // Calculate workgroup count (256 threads per workgroup)
+        const workgroupCount = Math.ceil(vertexCount / 256);
+
+        // ===== PASS 1: Count =====
+        const countEncoder = this.device.createCommandEncoder();
+        const countPass = countEncoder.beginComputePass();
+        countPass.setPipeline(this.computeCountPipeline);
+        countPass.setBindGroup(0, bindGroup);
+        countPass.dispatchWorkgroups(workgroupCount);
+        countPass.end();
+
+        // Copy count to readback buffer
+        countEncoder.copyBufferToBuffer(
+            this.computeCountBuffer, 0,
+            this.computeReadbackBuffer, 0,
+            4
+        );
+        this.device.queue.submit([countEncoder.finish()]);
+
+        // Read count from GPU
+        await this.computeReadbackBuffer.mapAsync(GPUMapMode.READ);
+        const countData = new Uint32Array(this.computeReadbackBuffer.getMappedRange().slice(0));
+        this.computeReadbackBuffer.unmap();
+
+        const selectedCount = countData[0];
+        console.log(`🎯 Selection compute: ${selectedCount} vertices inside selection`);
+
+        if (selectedCount === 0) {
+            return null;
+        }
+
+        // ===== PASS 2: Write =====
+        // Reset count to 0 (will be used as write index)
+        this.device.queue.writeBuffer(this.computeCountBuffer, 0, new Uint32Array([0]));
+
+        const writeEncoder = this.device.createCommandEncoder();
+        const writePass = writeEncoder.beginComputePass();
+        writePass.setPipeline(this.computeWritePipeline);
+        writePass.setBindGroup(0, bindGroup);
+        writePass.dispatchWorkgroups(workgroupCount);
+        writePass.end();
+        this.device.queue.submit([writeEncoder.finish()]);
+
+        // Read selected vertices from GPU
+        const outputSize = selectedCount * 12; // 3 floats * 4 bytes per vertex
+        const outputReadbackBuffer = this.device.createBuffer({
+            size: outputSize,
+            usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
+        });
+
+        const copyEncoder = this.device.createCommandEncoder();
+        copyEncoder.copyBufferToBuffer(
+            this.computeOutputBuffer, 0,
+            outputReadbackBuffer, 0,
+            outputSize
+        );
+        this.device.queue.submit([copyEncoder.finish()]);
+
+        await outputReadbackBuffer.mapAsync(GPUMapMode.READ);
+        const outputData = new Float32Array(outputReadbackBuffer.getMappedRange().slice(0));
+        outputReadbackBuffer.unmap();
+        outputReadbackBuffer.destroy();
+
+        console.log(`Compute Shader: Retrieved ${selectedCount} selected vertices`);
+        return outputData;
     }
 
     private setupPickingTextures(): void {
@@ -622,13 +814,31 @@ export default class Renderer {
             }
         });
 
-        renderPass.setPipeline(this.pickingPipeline);
         renderPass.setBindGroup(0, this.frameBindGroup);
 
-        objects.forEach((obj, instanceIndex) => {
-            obj.bind(renderPass);
-            obj.draw(renderPass, instanceIndex);
-        });
+        // Group objects by render type for picking
+        const standardObjects = objects.filter(obj => obj.renderType !== RenderType.Terrain);
+        const terrainObjects = objects.filter(obj => obj.renderType === RenderType.Terrain);
+
+        // Render standard objects with standard picking pipeline
+        if (standardObjects.length > 0) {
+            renderPass.setPipeline(this.pickingPipeline);
+            standardObjects.forEach((obj) => {
+                const instanceIndex = objects.indexOf(obj);
+                obj.bind(renderPass);
+                obj.draw(renderPass, instanceIndex);
+            });
+        }
+
+        // Render terrain objects with terrain picking pipeline
+        if (terrainObjects.length > 0) {
+            renderPass.setPipeline(this.terrainPickingPipeline);
+            terrainObjects.forEach((obj) => {
+                const instanceIndex = objects.indexOf(obj);
+                obj.bind(renderPass);
+                obj.draw(renderPass, instanceIndex);
+            });
+        }
 
         renderPass.end();
         this.device.queue.submit([commandEncoder.finish()]);
