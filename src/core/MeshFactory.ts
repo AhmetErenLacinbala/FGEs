@@ -1,6 +1,6 @@
 import { WebIO, Primitive } from "@gltf-transform/core";
 import { vec3 } from "gl-matrix";
-import { MeshData, createMeshData, STANDARD_BUFFER_LAYOUT } from "./MeshData";
+import { MeshData, createMeshData, STANDARD_BUFFER_LAYOUT, TERRAIN_BUFFER_LAYOUT } from "./MeshData";
 
 /**
  * MeshFactory - Factory for creating meshes from various sources
@@ -198,9 +198,9 @@ export default class MeshFactory {
     }
 
     /**
-     * Create terrain mesh from heightmap data
-     * XZ plane fits within a fixed world-space box (default: -10 to +10)
-     * Y uses real height values from heightmap (in meters)
+     * Create terrain mesh from heightmap data with normals
+     * XY plane is the ground, Z is height
+     * Includes calculated vertex normals for lighting
      */
     static fromHeightmap(
         device: GPUDevice,
@@ -208,15 +208,15 @@ export default class MeshFactory {
         width: number,
         height: number,
         options: {
-            /** Target world size for XZ plane (default: 20, meaning -10 to +10) */
+            /** Target world size for XY plane (default: 20, meaning -10 to +10) */
             targetSize?: number;
             /** Scale factor for height values (default: 0.001 to convert meters to world units) */
             heightScale?: number;
         } = {}
     ): MeshData {
         const {
-            targetSize = 20,      // -10 to +10 on XZ
-            heightScale = 0.001   // Convert meters to reasonable world units
+            targetSize = 20,
+            heightScale = 0.001
         } = options;
 
         if (heightData.length !== width * height) {
@@ -225,7 +225,7 @@ export default class MeshFactory {
 
         const cols = width;
         const rows = height;
-        const halfSize = targetSize / 2; // 10
+        const halfSize = targetSize / 2;
 
         // Find min/max height for logging
         let minHeight = heightData[0];
@@ -235,21 +235,84 @@ export default class MeshFactory {
             if (heightData[i] > maxHeight) maxHeight = heightData[i];
         }
 
-        // Generate vertices
-        const vertices = new Float32Array(rows * cols * 5);
+        // Helper to get height at (row, col) safely
+        const getHeight = (row: number, col: number): number => {
+            if (row < 0 || row >= rows || col < 0 || col >= cols) return 0;
+            return heightData[row * cols + col] * heightScale;
+        };
+
+        // Generate vertices: position (3) + normal (3) + uv (2) = 8 floats per vertex
+        const vertices = new Float32Array(rows * cols * 8);
 
         for (let row = 0; row < rows; row++) {
             for (let col = 0; col < cols; col++) {
-                const idx = (row * cols + col) * 5;
+                const idx = (row * cols + col) * 8;
+
+                // Position
                 const x = (col / (cols - 1)) * targetSize - halfSize;
                 const y = (row / (rows - 1)) * targetSize - halfSize;
-                const z = heightData[row * cols + col] * heightScale;
+                const z = getHeight(row, col);
 
-                vertices[idx + 0] = x;
-                vertices[idx + 1] = y;
-                vertices[idx + 2] = z;
-                vertices[idx + 3] = col / (cols - 1); // u
-                vertices[idx + 4] = row / (rows - 1); // v
+                // Calculate normal using neighbor heights
+                // Our coordinate system: X = col, Y = row, Z = height
+                const currentHeight = z;
+
+                // Neighbor direction vectors (relative to current vertex)
+                // Left: -X direction
+                const leftDz = col > 0 ? getHeight(row, col - 1) - currentHeight : 0;
+                const left = col > 0 ? vec3.fromValues(-1, 0, leftDz) : vec3.fromValues(0, 0, 0);
+
+                // Right: +X direction
+                const rightDz = col < cols - 1 ? getHeight(row, col + 1) - currentHeight : 0;
+                const right = col < cols - 1 ? vec3.fromValues(1, 0, rightDz) : vec3.fromValues(0, 0, 0);
+
+                // Down: -Y direction
+                const downDz = row > 0 ? getHeight(row - 1, col) - currentHeight : 0;
+                const down = row > 0 ? vec3.fromValues(0, -1, downDz) : vec3.fromValues(0, 0, 0);
+
+                // Up: +Y direction
+                const upDz = row < rows - 1 ? getHeight(row + 1, col) - currentHeight : 0;
+                const up = row < rows - 1 ? vec3.fromValues(0, 1, upDz) : vec3.fromValues(0, 0, 0);
+
+                // Accumulate normals from cross products of adjacent edge pairs
+                const sumNormal = vec3.fromValues(0, 0, 0);
+                const temp = vec3.create();
+
+                // Cross products for each quadrant
+                if (col > 0 && row > 0) {
+                    vec3.cross(temp, left, down);
+                    vec3.add(sumNormal, sumNormal, temp);
+                }
+                if (col < cols - 1 && row > 0) {
+                    vec3.cross(temp, down, right);
+                    vec3.add(sumNormal, sumNormal, temp);
+                }
+                if (col < cols - 1 && row < rows - 1) {
+                    vec3.cross(temp, right, up);
+                    vec3.add(sumNormal, sumNormal, temp);
+                }
+                if (col > 0 && row < rows - 1) {
+                    vec3.cross(temp, up, left);
+                    vec3.add(sumNormal, sumNormal, temp);
+                }
+
+                // Normalize
+                vec3.normalize(sumNormal, sumNormal);
+
+                // Default to up if zero
+                if (vec3.length(sumNormal) < 0.001) {
+                    vec3.set(sumNormal, 0, 0, 1);
+                }
+
+                // Write vertex data
+                vertices[idx + 0] = x;           // position.x
+                vertices[idx + 1] = y;           // position.y
+                vertices[idx + 2] = z;           // position.z
+                vertices[idx + 3] = sumNormal[0]; // normal.x
+                vertices[idx + 4] = sumNormal[1]; // normal.y
+                vertices[idx + 5] = sumNormal[2]; // normal.z
+                vertices[idx + 6] = col / (cols - 1); // u
+                vertices[idx + 7] = row / (rows - 1); // v
             }
         }
 
@@ -265,21 +328,19 @@ export default class MeshFactory {
                 const bottomLeft = (row + 1) * cols + col;
                 const bottomRight = bottomLeft + 1;
 
-                // First triangle
                 indices[indexIdx++] = topLeft;
                 indices[indexIdx++] = bottomLeft;
                 indices[indexIdx++] = topRight;
 
-                // Second triangle
                 indices[indexIdx++] = topRight;
                 indices[indexIdx++] = bottomLeft;
                 indices[indexIdx++] = bottomRight;
             }
         }
 
-        console.log(`MeshFactory: Terrain ${cols}x${rows} in ${targetSize}x${targetSize} box, height: ${minHeight.toFixed(1)}m - ${maxHeight.toFixed(1)}m`);
+        console.log(`MeshFactory: Terrain ${cols}x${rows} with normals, height: ${minHeight.toFixed(1)}m - ${maxHeight.toFixed(1)}m`);
 
-        return createMeshData(device, vertices, indices);
+        return createMeshData(device, vertices, indices, TERRAIN_BUFFER_LAYOUT, GPUBufferUsage.STORAGE);
     }
 
     /**

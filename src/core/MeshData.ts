@@ -13,6 +13,7 @@ export interface MeshData {
 
 /**
  * Standard buffer layout for position (vec3) + uv (vec2)
+ * Total: 5 floats = 20 bytes per vertex
  */
 export const STANDARD_BUFFER_LAYOUT: GPUVertexBufferLayout = {
     arrayStride: 5 * 4, // 5 floats * 4 bytes
@@ -31,18 +32,44 @@ export const STANDARD_BUFFER_LAYOUT: GPUVertexBufferLayout = {
 };
 
 /**
+ * Terrain buffer layout for position (vec3) + normal (vec3) + uv (vec2)
+ * Total: 8 floats = 32 bytes per vertex
+ */
+export const TERRAIN_BUFFER_LAYOUT: GPUVertexBufferLayout = {
+    arrayStride: 8 * 4, // 8 floats * 4 bytes
+    attributes: [
+        {
+            shaderLocation: 0,
+            format: 'float32x3', // position xyz
+            offset: 0
+        },
+        {
+            shaderLocation: 1,
+            format: 'float32x3', // normal xyz
+            offset: 3 * 4
+        },
+        {
+            shaderLocation: 2,
+            format: 'float32x2', // uv
+            offset: 6 * 4
+        }
+    ]
+};
+
+/**
  * Create GPU buffers from raw vertex/index data
  */
 export function createMeshData(
     device: GPUDevice,
     vertices: Float32Array,
     indices?: Uint32Array,
-    layout: GPUVertexBufferLayout = STANDARD_BUFFER_LAYOUT
+    layout: GPUVertexBufferLayout = STANDARD_BUFFER_LAYOUT,
+    extraUsage: GPUBufferUsageFlags = 0 //This if for decalling for now
 ): MeshData {
     // Create vertex buffer
     const vertexBuffer = device.createBuffer({
         size: vertices.byteLength,
-        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST | extraUsage,
         mappedAtCreation: true
     });
     new Float32Array(vertexBuffer.getMappedRange()).set(vertices);
@@ -60,10 +87,13 @@ export function createMeshData(
         indexBuffer.unmap();
     }
 
+    // Calculate floats per vertex from layout
+    const floatsPerVertex = layout.arrayStride / 4;
+
     return {
         vertexBuffer,
         indexBuffer,
-        vertexCount: vertices.length / 5, // Assuming 5 floats per vertex
+        vertexCount: vertices.length / floatsPerVertex,
         indexCount: indices?.length ?? 0,
         bufferLayout: layout,
         useIndexBuffer: indices !== undefined && indices.length > 0
@@ -79,4 +109,3 @@ export function destroyMeshData(meshData: MeshData): void {
         meshData.indexBuffer.destroy();
     }
 }
-

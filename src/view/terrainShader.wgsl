@@ -39,23 +39,32 @@ struct SelectionQuad {
 @binding(3) @group(1) var satelliteSampler: sampler;
 @binding(4) @group(1) var<uniform> blendSettings: BlendSettings;
 @binding(5) @group(1) var<uniform> selectionQuad: SelectionQuad;
+
 struct Fragment {
     @builtin(position) Position: vec4<f32>,
     @location(0) TexCoord: vec2<f32>,
     @location(1) WorldPos: vec3<f32>,
+    @location(2) WorldNormal: vec3<f32>,
 };
 
 @vertex
 fn vs_main(
     @builtin(instance_index) ID: u32,
     @location(0) vertexPosition: vec3<f32>,
-    @location(1) vertexTexCoord: vec2<f32>
+    @location(1) vertexNormal: vec3<f32>,
+    @location(2) vertexTexCoord: vec2<f32>
 ) -> Fragment {
     var output: Fragment;
-    let worldPos = objects.model[ID] * vec4<f32>(vertexPosition, 1.0);
+    let model = objects.model[ID];
+    let worldPos = model * vec4<f32>(vertexPosition, 1.0);
+    
+    // Transform normal to world space (using upper 3x3 of model matrix)
+    let worldNormal = normalize((model * vec4<f32>(vertexNormal, 0.0)).xyz);
+    
     output.Position = transformUBO.projection * transformUBO.view * worldPos;
     output.TexCoord = vertexTexCoord;
     output.WorldPos = worldPos.xyz;
+    output.WorldNormal = worldNormal;
     return output;
 }
 
@@ -87,19 +96,22 @@ fn isInsideSelectionQuad(pt: vec2<f32>) -> bool {
 }
 
 @fragment
-fn fs_main(@location(0) TexCoord: vec2<f32>, @location(1) WorldPos: vec3<f32>) -> @location(0) vec4<f32> {
+fn fs_main(
+    @location(0) TexCoord: vec2<f32>, 
+    @location(1) WorldPos: vec3<f32>,
+    @location(2) WorldNormal: vec3<f32>
+) -> @location(0) vec4<f32> {
     // Sample both textures
     let ghiColor = textureSample(ghiTexture, ghiSampler, TexCoord);
     let satelliteColor = textureSample(satelliteTexture, satelliteSampler, TexCoord);
     
     var finalColor = mix(ghiColor, satelliteColor, blendSettings.satelliteOpacity);
 
-
     // Selection highlight
     let pt = vec2<f32>(WorldPos.x, WorldPos.y);
     if (isInsideSelectionQuad(pt)) {
         let highlightColor = vec4<f32>(1.0, 0.9, 0.2, 1.0);
-        finalColor = mix(finalColor, highlightColor, (sin(selectionQuad.time )+ 1)* 0.5);
+        finalColor = mix(finalColor, highlightColor, (sin(selectionQuad.time) + 1.0) * 0.5);
     }
     
     return finalColor;

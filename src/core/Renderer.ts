@@ -4,7 +4,7 @@ import billboardShader from "../view/billboard.wgsl?raw";
 import terrainShader from "../view/terrainShader.wgsl?raw";
 import pickingShader from "../view/pickingShader.wgsl?raw";
 import { RenderData } from "./Scene";
-import { STANDARD_BUFFER_LAYOUT } from "./MeshData";
+import { STANDARD_BUFFER_LAYOUT, TERRAIN_BUFFER_LAYOUT } from "./MeshData";
 import { RenderType } from "./RenderableObject";
 import InstancedMesh from "./InstancedMesh";
 
@@ -301,7 +301,7 @@ export default class Renderer {
             vertex: {
                 module: this.device.createShaderModule({ code: terrainShader }),
                 entryPoint: "vs_main",
-                buffers: [STANDARD_BUFFER_LAYOUT]
+                buffers: [TERRAIN_BUFFER_LAYOUT]
             },
             fragment: {
                 module: this.device.createShaderModule({ code: terrainShader }),
