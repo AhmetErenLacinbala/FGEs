@@ -6,12 +6,19 @@ import {
     TileServiceState,
     ProcessingProgress
 } from '../types/terrain';
+import {
+    TileGridRequest,
+    TileGridResponse,
+    StreamingTileRequest,
+    StreamingTileResponse
+} from '../types/terrainStreaming';
 import { apiService } from './apiService';
 
 export class TerrainService {
     private tileState: TileServiceState;
     private tileListeners: Set<(state: TileServiceState) => void>;
     private progressListeners: Set<(progress: ProcessingProgress) => void>;
+    private baseUrl: string;
 
     constructor() {
         this.tileState = {
@@ -25,6 +32,7 @@ export class TerrainService {
         };
         this.tileListeners = new Set();
         this.progressListeners = new Set();
+        this.baseUrl = apiService.getEnvironmentInfo().baseUrl;
 
         console.log('🏔️ TerrainService initialized with API service');
         console.log('🌐 Environment:', apiService.getEnvironmentInfo());
@@ -402,7 +410,7 @@ export class TerrainService {
                     samplesPerPixel: image.getSamplesPerPixel(),
                     bitsPerSample: image.getBitsPerSample(),
                     sampleFormat: image.getSampleFormat(),
-                    dataType: image.getArrayForSample(0, 0, 0).constructor.name
+                    dataType: image.getBitsPerSample()?.[0] || 'unknown'
                 };
                 console.log('📊 TIF Image details:', imageInfo);
 

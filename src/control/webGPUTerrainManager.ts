@@ -7,14 +7,14 @@ import {
     TerrainTile,
     TerrainManagerConfig,
     PlayerPosition,
-    TileLoadPriority,
     LoadingQueue,
     GPUMemoryStats,
     TerrainStreamingEvents,
     MeshGenerationRequest,
     GeographicCoordinates,
-    TileCoordinates,
-    WorldCoordinates
+    WorldCoordinates,
+    TileGridResponse,
+    StreamingTileResponse
 } from '../types/terrainStreaming';
 
 import { VertexBufferManager } from '../view/vertexBufferManager';
@@ -22,7 +22,7 @@ import { TerrainWorkerManager } from '../workers/terrainWorkerManager';
 import { terrainService } from '../services/terrainService';
 
 export class WebGPUTerrainManager {
-    private device: GPUDevice;
+    private _device: GPUDevice;
     private config: TerrainManagerConfig;
     private vertexBufferManager: VertexBufferManager;
     private workerManager: TerrainWorkerManager;
@@ -46,8 +46,8 @@ export class WebGPUTerrainManager {
     private statusCallback?: (status: any) => void;
     private logCallback?: (message: string, type: 'info' | 'success' | 'error' | 'warning') => void;
 
-    // Performance tracking
-    private performanceMetrics = {
+    // Performance tracking (reserved for future use)
+    private _performanceMetrics = {
         tilesLoaded: 0,
         tilesUnloaded: 0,
         averageLoadTime: 0,
@@ -55,7 +55,7 @@ export class WebGPUTerrainManager {
     };
 
     constructor(device: GPUDevice, config: Partial<TerrainManagerConfig> = {}) {
-        this.device = device;
+        this._device = device;
 
         // Set default configuration
         this.config = {
@@ -109,7 +109,7 @@ export class WebGPUTerrainManager {
             this.logCallback?.(`📥 Received ${gridResponse.totalTiles} tiles to load`, 'success');
 
             // Process tiles in parallel
-            const loadPromises = gridResponse.tiles.map(tileInfo => {
+            const loadPromises = gridResponse.tiles.map((tileInfo: TileGridResponse['tiles'][0]) => {
                 return this.loadTile(tileInfo);
             });
 
@@ -154,7 +154,7 @@ export class WebGPUTerrainManager {
 
                 // Load new tiles
                 if (streamResponse.newTiles.length > 0) {
-                    const loadPromises = streamResponse.newTiles.map(tileInfo => {
+                    const loadPromises = streamResponse.newTiles.map((tileInfo: StreamingTileResponse['newTiles'][0]) => {
                         return this.loadTile(tileInfo);
                     });
 
@@ -318,7 +318,7 @@ export class WebGPUTerrainManager {
     /**
      * Get tiles that are currently visible/renderable
      */
-    getVisibleTiles(cameraPosition?: { x: number; y: number; z: number }): TerrainTile[] {
+    getVisibleTiles(_cameraPosition?: { x: number; y: number; z: number }): TerrainTile[] {
         const visibleTiles: TerrainTile[] = [];
 
         for (const tile of this.loadedTiles.values()) {

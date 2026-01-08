@@ -16,7 +16,7 @@ export interface StatusData {
 
 export class StatusManager {
     private statusElements: { [key: string]: HTMLElement } = {};
-    private logContent: HTMLElement;
+    private logContent!: HTMLElement;
     private maxLogEntries = 50;
 
     constructor() {

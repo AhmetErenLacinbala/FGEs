@@ -53,6 +53,9 @@ export default class App {
     private panelMaterial: { bindGroup: GPUBindGroup } | null = null;
     private panelInstances: InstancedMesh | null = null;
 
+    // Instance test
+    private testInstancedMesh: InstancedMesh | null = null;
+
     private terrainMetadata: {
         bounds: { west: number; south: number; east: number; north: number };
         worldSize: number;
@@ -227,11 +230,11 @@ export default class App {
 
 
 
-        // Submesh support
+        // Submesh support - Instance Test
         const instPanelMeshes = await MeshFactory.fromGLTF(device, "models/flat_vase.glb");
         const instPanelMaterial = await MaterialFactory.fromTexture(device, "img/floor.jpg", layout);
 
-        const instancedPanels = new InstancedMesh({
+        this.testInstancedMesh = new InstancedMesh({
             device,
             submeshes: instPanelMeshes.map(mesh => ({
                 mesh,
@@ -240,24 +243,11 @@ export default class App {
             maxInstances: 10000
         });
 
-        for (let i = 0; i < 10000; i++) {
-            instancedPanels.addInstance({
-                position: [
-                    (Math.random() - 0.5) * 20,
-                    Math.random() * 5,
-                    (Math.random() - 0.5) * 20
-                ],
-                rotation: [
-                    Math.random() * 360,
-                    Math.random() * 360,
-                    Math.random() * 360
-                ],
-                scale: [1, 1, 1]
-            });
-        }
+        this.setTestInstanceCount(500);
+        this.scene.addInstanced(this.testInstancedMesh);
 
-        instancedPanels.updateBuffer();
-        this.scene.addInstanced(instancedPanels);
+        // Setup instance test buttons
+        this.setupInstanceTestButtons();
 
 
     }
@@ -522,6 +512,45 @@ export default class App {
         if (this.panelInstances) {
             this.panelInstances.visible = visible;
         }
+    }
+
+    // Instance test methods
+    setupInstanceTestButtons(): void {
+        const counts = [5000, 2500, 1000, 500];
+        counts.forEach(count => {
+            const btn = document.getElementById(`inst-${count}`);
+            if (btn) {
+                btn.addEventListener('click', () => this.setTestInstanceCount(count));
+            }
+        });
+    }
+
+    setTestInstanceCount(count: number): void {
+        if (!this.testInstancedMesh) return;
+
+        this.testInstancedMesh.clear();
+
+        for (let i = 0; i < count; i++) {
+            this.testInstancedMesh.addInstance({
+                position: [
+                    (Math.random() - 0.5) * 20,
+                    Math.random() * 5,
+                    (Math.random() - 0.5) * 20
+                ],
+                rotation: [
+                    Math.random() * 360,
+                    Math.random() * 360,
+                    Math.random() * 360
+                ],
+                scale: [1, 1, 1]
+            });
+        }
+
+        this.testInstancedMesh.updateBuffer();
+
+        // Update UI
+        const countEl = document.getElementById('inst-count');
+        if (countEl) countEl.textContent = String(count);
     }
 
     calculateSelectionArea(points: vec3[]): { worldArea: number; realAreaM2: number } | null {
