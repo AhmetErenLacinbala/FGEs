@@ -244,6 +244,10 @@ export default class MeshFactory {
         // Generate vertices: position (3) + normal (3) + uv (2) = 8 floats per vertex
         const vertices = new Float32Array(rows * cols * 8);
 
+        // Grid step size for accurate normal calculation
+        const stepX = targetSize / (cols - 1);
+        const stepY = targetSize / (rows - 1);
+
         for (let row = 0; row < rows; row++) {
             for (let col = 0; col < cols; col++) {
                 const idx = (row * cols + col) * 8;
@@ -258,21 +262,22 @@ export default class MeshFactory {
                 const currentHeight = z;
 
                 // Neighbor direction vectors (relative to current vertex)
+                // Use actual grid step size for accurate slope calculation
                 // Left: -X direction
                 const leftDz = col > 0 ? getHeight(row, col - 1) - currentHeight : 0;
-                const left = col > 0 ? vec3.fromValues(-1, 0, leftDz) : vec3.fromValues(0, 0, 0);
+                const left = col > 0 ? vec3.fromValues(-stepX, 0, leftDz) : vec3.fromValues(0, 0, 0);
 
                 // Right: +X direction
                 const rightDz = col < cols - 1 ? getHeight(row, col + 1) - currentHeight : 0;
-                const right = col < cols - 1 ? vec3.fromValues(1, 0, rightDz) : vec3.fromValues(0, 0, 0);
+                const right = col < cols - 1 ? vec3.fromValues(stepX, 0, rightDz) : vec3.fromValues(0, 0, 0);
 
                 // Down: -Y direction
                 const downDz = row > 0 ? getHeight(row - 1, col) - currentHeight : 0;
-                const down = row > 0 ? vec3.fromValues(0, -1, downDz) : vec3.fromValues(0, 0, 0);
+                const down = row > 0 ? vec3.fromValues(0, -stepY, downDz) : vec3.fromValues(0, 0, 0);
 
                 // Up: +Y direction
                 const upDz = row < rows - 1 ? getHeight(row + 1, col) - currentHeight : 0;
-                const up = row < rows - 1 ? vec3.fromValues(0, 1, upDz) : vec3.fromValues(0, 0, 0);
+                const up = row < rows - 1 ? vec3.fromValues(0, stepY, upDz) : vec3.fromValues(0, 0, 0);
 
                 // Accumulate normals from cross products of adjacent edge pairs
                 const sumNormal = vec3.fromValues(0, 0, 0);

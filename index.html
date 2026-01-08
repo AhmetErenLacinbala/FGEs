@@ -442,9 +442,9 @@
             <div class="scale-control">
               <label>
                 <span>Tile Resolution</span>
-                <span id="scale-value">30</span>
+                <span id="scale-value">100</span>
               </label>
-              <input type="range" id="input-scale" min="10" max="100" value="30" />
+              <input type="range" id="input-scale" min="10" max="100" value="100" />
             </div>
             <div class="border-t border-gray-700 flex flex-col gap-2 pt-4">
               <label class="checkbox-option">
@@ -460,6 +460,12 @@
                 </label>
                 <input type="range" id="satellite-opacity" min="0" max="100" value="20" />
               </div>
+
+              <label class="checkbox-option" style="margin-top: 8px">
+                <input type="checkbox" id="show-panels" checked />
+                <span class="checkmark"></span>
+                <span class="option-label">Show Solar Panels</span>
+              </label>
             </div>
           </div>
         </div>
@@ -497,6 +503,103 @@
       <main class="fixed top-0 right-0 left-[320px] h-screen flex flex-col bg-app-bg overflow-hidden">
         <div class="canvas-container">
           <canvas id="gfx-main"></canvas>
+
+          <!-- FPS Counter -->
+          <div id="fps-counter" style="position: absolute; top: 8px; right: 8px; font-size: 11px; color: #666; font-family: monospace">0</div>
+
+          <!-- Solar Info Panel -->
+          <div id="solar-info-panel" style="position: absolute; top: 16px; right: 16px; background: rgba(18, 18, 26, 0.95); border: 1px solid #3a3a4a; border-radius: 12px; padding: 16px 20px; min-width: 220px; backdrop-filter: blur(8px); box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4)">
+            <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: #888; margin-bottom: 12px">Solar Analysis</div>
+
+            <!-- Guidance (shown when no selection) -->
+            <div id="solar-guidance" style="font-size: 0.8rem; color: #888; line-height: 1.5">
+              <div style="margin-bottom: 8px">No region selected</div>
+              <div style="font-size: 0.7rem; color: #666">
+                1. Generate terrain
+                <br />
+                2. Click 4 points to select area
+              </div>
+            </div>
+
+            <!-- Data (shown after selection) -->
+            <div id="solar-data" style="display: none; flex-direction: column; gap: 10px">
+              <div>
+                <div style="font-size: 0.7rem; color: #666">Suitable Area</div>
+                <div style="font-size: 1.1rem; color: #4ecdc4; font-weight: 600">
+                  <span id="solar-area">-</span>
+                  m²
+                </div>
+              </div>
+              <div>
+                <div style="font-size: 0.7rem; color: #666">Average GHI</div>
+                <div style="font-size: 1.1rem; color: #ffd93d; font-weight: 600">
+                  <span id="solar-ghi">-</span>
+                  kWh/m²/day
+                </div>
+              </div>
+              <div style="border-top: 1px solid #2a2a3a; padding-top: 10px; margin-top: 4px">
+                <div style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px; color: #555; margin-bottom: 6px">Power Potential</div>
+
+                <!-- Raw Solar Energy -->
+                <div style="margin-bottom: 8px">
+                  <div style="font-size: 0.65rem; color: #666">Raw Solar Energy</div>
+                  <div style="font-size: 1rem; color: #ffa94d; font-weight: 600">
+                    <span id="solar-power-raw">-</span>
+                    <span style="font-size: 0.7rem; color: #888">kWh/day</span>
+                  </div>
+                </div>
+
+                <!-- Estimated Electricity -->
+                <div>
+                  <div style="font-size: 0.65rem; color: #666">
+                    Est. Electricity
+                    <span style="font-size: 0.55rem; color: #555">(20% eff, 60% coverage)</span>
+                  </div>
+                  <div style="font-size: 1.2rem; color: #69db7c; font-weight: 700">
+                    <span id="solar-power-est">-</span>
+                    <span style="font-size: 0.75rem; color: #888">kWh/day</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Legend Panel -->
+          <div id="legend-panel" style="position: absolute; bottom: 60px; right: 16px; background: rgba(18, 18, 26, 0.95); border: 1px solid #3a3a4a; border-radius: 12px; padding: 14px 16px; min-width: 200px; backdrop-filter: blur(8px); box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4)">
+            <!-- Slope Legend -->
+            <div style="margin-bottom: 14px">
+              <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; color: #888; margin-bottom: 8px">Slope (Selection)</div>
+              <div style="display: flex; flex-direction: column; gap: 4px; font-size: 0.75rem">
+                <div style="display: flex; align-items: center; gap: 8px">
+                  <div style="width: 14px; height: 14px; background: #00cc00; border-radius: 3px"></div>
+                  <span style="color: #aaa">0-5° Ideal</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px">
+                  <div style="width: 14px; height: 14px; background: #b3e600; border-radius: 3px"></div>
+                  <span style="color: #aaa">5-10° Acceptable</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px">
+                  <div style="width: 14px; height: 14px; background: #ff9900; border-radius: 3px"></div>
+                  <span style="color: #aaa">10-15° Risky</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px">
+                  <div style="width: 14px; height: 14px; background: #ff2626; border-radius: 3px"></div>
+                  <span style="color: #aaa">15°+ Not Suitable</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- GHI Legend -->
+            <div>
+              <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; color: #888; margin-bottom: 8px">GHI (Solar Irradiance)</div>
+              <div style="display: flex; align-items: center; gap: 6px; font-size: 0.7rem">
+                <span style="color: #666">Low</span>
+                <div style="flex: 1; height: 10px; border-radius: 5px; background: linear-gradient(to right, #1a237e, #4fc3f7, #ffeb3b, #ff9800, #d32f2f)"></div>
+                <span style="color: #666">High</span>
+              </div>
+              <div style="font-size: 0.65rem; color: #555; margin-top: 4px; text-align: center">kWh/m²/day</div>
+            </div>
+          </div>
         </div>
 
         <div class="info-bar">

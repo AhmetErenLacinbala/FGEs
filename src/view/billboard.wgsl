@@ -51,5 +51,19 @@ fn vs_main(
 
 @fragment
 fn fs_main(@location(0) TexCoord: vec2<f32>) -> @location(0) vec4<f32> {
-  return textureSample(myTexture, mySampler, TexCoord);
+  // Convert to centered coordinates (-0.5 to 0.5)
+  let centered = TexCoord - vec2<f32>(0.5, 0.5);
+  
+  // Distance from center
+  let dist = length(centered);
+  
+  // Discard pixels outside circle (radius = 0.5)
+  if (dist > 0.5) {
+    discard;
+  }
+  
+  let baseColor = textureSample(myTexture, mySampler, TexCoord);
+
+
+  return baseColor;
 }

@@ -95,6 +95,13 @@ fn isInsideSelectionQuad(pt: vec2<f32>) -> bool {
     return inTri1 || inTri2;
 }
 
+// Calculate slope angle from normal (returns degrees)
+fn getSlopeAngle(normal: vec3<f32>) -> f32 {
+
+    let cosAngle = clamp(abs(normal.z), 0.0, 1.0);
+    return acos(cosAngle) * (180.0 / 3.14159265);
+}
+
 @fragment
 fn fs_main(
     @location(0) TexCoord: vec2<f32>, 
@@ -107,11 +114,29 @@ fn fs_main(
     
     var finalColor = mix(ghiColor, satelliteColor, blendSettings.satelliteOpacity);
 
-    // Selection highlight
+    // Selection highlight with slope coloring for solar panel suitability
     let pt = vec2<f32>(WorldPos.x, WorldPos.y);
     if (isInsideSelectionQuad(pt)) {
-        let highlightColor = vec4<f32>(1.0, 0.9, 0.2, 1.0);
-        finalColor = mix(finalColor, highlightColor, (sin(selectionQuad.time) + 1.0) * 0.5);
+        let slopeAngle = getSlopeAngle(WorldNormal);
+        let pulse = (sin(selectionQuad.time) + 1.0) * 0.2 + 0.4; // 0.4-0.6
+        
+        var slopeColor: vec4<f32>;
+        
+        if (slopeAngle <= 5.0) {
+            // 0-5° → İDEAL (Koyu Yeşil)
+            slopeColor = vec4<f32>(0.0, 0.8, 0.0, 1.0);
+        } else if (slopeAngle <= 10.0) {
+            // 5-10° → KABUL EDİLEBİLİR (Sarı-Yeşil)
+            slopeColor = vec4<f32>(0.7, 0.9, 0.0, 1.0);
+        } else if (slopeAngle <= 15.0) {
+            // 10-15° → EKONOMİK RİSK (Turuncu)
+            slopeColor = vec4<f32>(1.0, 0.6, 0.0, 1.0);
+        } else {
+            // 15°+ → UYGUN DEĞİL (Kırmızı)
+            slopeColor = vec4<f32>(1.0, 0.15, 0.15, 1.0);
+        }
+        
+        finalColor = mix(finalColor, slopeColor, pulse);
     }
     
     return finalColor;

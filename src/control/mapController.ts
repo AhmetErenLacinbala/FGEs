@@ -432,6 +432,14 @@ export default class MapController {
                 terrainMesh.vertexBuffer,
                 terrainMesh.vertexCount
             );
+            this.app.setTerrainMetadata(tileData.bounds, 20);
+            this.app.setGHIData(
+                tileData.solarData.ghiData,
+                tileData.solarData.width,
+                tileData.solarData.height,
+                tileData.solarData.minGHI,
+                tileData.solarData.maxGHI
+            );
 
             this.showStatus(`✅ Terrain loaded!(${tileData.heightmap.width}x${tileData.heightmap.height})`, 'success');
             console.log('✅ Terrain added to scene');

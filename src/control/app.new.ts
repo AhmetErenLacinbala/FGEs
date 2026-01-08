@@ -1,3 +1,4 @@
+
 /**
  * App - Refactored application using the new simplified architecture
  * 
@@ -33,6 +34,11 @@ export default class App {
     rightAmount: number = 0;
     upAmount: number = 0;
 
+    // FPS tracking
+    private lastFrameTime: number = 0;
+    private frameCount: number = 0;
+    private fpsElement: HTMLElement | null = null;
+
     // Camera control state
     cameraControlActive: boolean = false;
 
@@ -46,6 +52,19 @@ export default class App {
     private panelMeshes: MeshData[] | null = null;
     private panelMaterial: { bindGroup: GPUBindGroup } | null = null;
     private panelInstances: InstancedMesh | null = null;
+
+    private terrainMetadata: {
+        bounds: { west: number; south: number; east: number; north: number };
+        worldSize: number;
+    } | null = null;
+
+    private ghiData: {
+        data: Float32Array;
+        width: number;
+        height: number;
+        minGHI: number;
+        maxGHI: number;
+    } | null = null;
 
     constructor(canvas: HTMLCanvasElement) {
         this.canvas = canvas;
@@ -69,6 +88,14 @@ export default class App {
 
         // Handle window resize
         window.addEventListener('resize', () => this.resizeCanvas());
+
+        // Panel visibility toggle
+        const showPanelsCheckbox = document.getElementById('show-panels') as HTMLInputElement;
+        if (showPanelsCheckbox) {
+            showPanelsCheckbox.addEventListener('change', () => {
+                this.togglePanelVisibility(showPanelsCheckbox.checked);
+            });
+        }
     }
 
     async init(): Promise<void> {
@@ -164,10 +191,9 @@ export default class App {
         this.scene.add(vase);
         this.scene.add(vase2);
 
-        const billboardMesh = MeshFactory.quad(device);
-
-        //const material = await MaterialFactory.fromColor(device, [1, 0, 0, 1], layout);
-        const billboardMaterial = await MaterialFactory.fromColor(device, [1, 0, 0, 1], layout);
+        // Small circular billboard marker
+        const billboardMesh = MeshFactory.quad(device, 0.15);
+        const billboardMaterial = await MaterialFactory.fromColor(device, [1, 0.2, 0, 1], layout);
 
         const billboard = new RenderableObject({
             mesh: billboardMesh,
@@ -199,68 +225,39 @@ export default class App {
             this.scene.add(triangle);
         }
 
-        //Instancing - 100 quads 
-        /*const instancedQuadMesh = MeshFactory.quad(device, 0.5);
-        const instancedMaterial = await MaterialFactory.fromColor(device, [0.2, 0.8, 0.3, 1], layout);
 
-        const instancedQuads = new InstancedMesh({
+
+        // Submesh support
+        const instPanelMeshes = await MeshFactory.fromGLTF(device, "models/flat_vase.glb");
+        const instPanelMaterial = await MaterialFactory.fromTexture(device, "img/floor.jpg", layout);
+
+        const instancedPanels = new InstancedMesh({
             device,
-            mesh: instancedQuadMesh,
-            material: instancedMaterial.bindGroup,
-            maxInstances: 1000
-        });*/
+            submeshes: instPanelMeshes.map(mesh => ({
+                mesh,
+                material: instPanelMaterial.bindGroup
+            })),
+            maxInstances: 10000
+        });
 
-        // Scatter 100 quads randomly
-        /* for (let i = 0; i < 100; i++) {
-             instancedQuads.addInstance({
-                 position: [
-                     (Math.random() - 0.5) * 20,  // X: -10 to 10
-                     Math.random() * 5,            // Y: 0 to 5
-                     (Math.random() - 0.5) * 20   // Z: -10 to 10
-                 ],
-                 rotation: [
-                     Math.random() * 360,
-                     Math.random() * 360,
-                     Math.random() * 360
-                 ],
-                 scale: [0.3, 0.3, 0.3]
-             });
-         }
- 
-         instancedQuads.updateBuffer();
-         this.scene.addInstanced(instancedQuads);
- 
-         // Submesh support
-         const instPanelMeshes = await MeshFactory.fromGLTF(device, "models/panel.glb");
-         const instPanelMaterial = await MaterialFactory.fromTexture(device, "img/panelbaked.png", layout);
- 
-         const instancedPanels = new InstancedMesh({
-             device,
-             submeshes: instPanelMeshes.map(mesh => ({
-                 mesh,
-                 material: instPanelMaterial.bindGroup
-             })),
-             maxInstances: 10000
-         });
+        for (let i = 0; i < 10000; i++) {
+            instancedPanels.addInstance({
+                position: [
+                    (Math.random() - 0.5) * 20,
+                    Math.random() * 5,
+                    (Math.random() - 0.5) * 20
+                ],
+                rotation: [
+                    Math.random() * 360,
+                    Math.random() * 360,
+                    Math.random() * 360
+                ],
+                scale: [1, 1, 1]
+            });
+        }
 
-         for (let i = 0; i < 5000; i++) {
-             instancedPanels.addInstance({
-                 position: [
-                     (Math.random() - 0.5) * 20,
-                     Math.random() * 5,
-                     (Math.random() - 0.5) * 20
-                 ],
-                 rotation: [
-                     Math.random() * 360,
-                     Math.random() * 360,
-                     Math.random() * 360
-                 ],
-                 scale: [0.01, 0.01, 0.01]
-             });
-         }
- 
-         instancedPanels.updateBuffer();
-         this.scene.addInstanced(instancedPanels);*/
+        instancedPanels.updateBuffer();
+        this.scene.addInstanced(instancedPanels);
 
 
     }
@@ -269,6 +266,20 @@ export default class App {
      * Main render loop
      */
     run = (): void => {
+        // FPS calculation
+        this.frameCount++;
+        const now = performance.now();
+        if (now - this.lastFrameTime >= 1000) {
+            if (!this.fpsElement) {
+                this.fpsElement = document.getElementById('fps-counter');
+            }
+            if (this.fpsElement) {
+                this.fpsElement.textContent = String(this.frameCount);
+            }
+            this.frameCount = 0;
+            this.lastFrameTime = now;
+        }
+
         this.scene.moveCamera(this.forwardsAmount, this.rightAmount, this.upAmount);
         this.scene.update();
         this.renderer.render(this.scene.getRenderData());
@@ -361,10 +372,10 @@ export default class App {
 
         // When 4 billboards placed, create quad
         if (this.billboardPositions.length === 4) {
-            //await this.createQuadFromPoints(this.billboardPositions);
             this.renderer.updateSelectionQuad(this.billboardPositions);
             this.quadCreated = true;
-            console.log(`✅ Quad created! No more billboards allowed.`);
+
+            const area = this.calculateSelectionArea(this.billboardPositions);
 
             // Run compute shader to extract selected vertices
             if (this.terrainVertexBuffer && this.terrainVertexCount > 0) {
@@ -373,9 +384,12 @@ export default class App {
                     this.terrainVertexCount
                 );
 
-                if (selectedVertices) {
-                    //console.log(`Compute: Selected vertices:`, selectedVertices.length / 3);
-                    // İleride burada object placement yapılacak
+                if (selectedVertices && area) {
+                    const selectedCount = selectedVertices.length / 3;
+                    const ratio = selectedCount / this.terrainVertexCount;
+                    const suitableAreaM2 = area.realAreaM2 * ratio;
+
+                    this.updateSolarPanel(suitableAreaM2);
                     await this.createPanelInstances(selectedVertices);
                 }
             }
@@ -421,17 +435,19 @@ export default class App {
         const layout = this.renderer.getMaterialGroupLayout();
 
         if (!this.billboardMaterial) {
-            this.billboardMaterial = await MaterialFactory.fromColor(device, [1, 0.3, 0, 1], layout);
+            // Bright red-orange color for visibility
+            this.billboardMaterial = await MaterialFactory.fromColor(device, [1, 0.2, 0, 1], layout);
         }
 
-        const mesh = MeshFactory.quad(device, 0.3);
+        // Small circular billboard (0.15 size)
+        const mesh = MeshFactory.quad(device, 0.15);
 
         const billboard = new RenderableObject({
             mesh,
             material: this.billboardMaterial.bindGroup,
             renderType: RenderType.Billboard,
             transform: new Transform(
-                vec3.fromValues(position[0], position[1] + 0.15, position[2]),
+                vec3.fromValues(position[0], position[1] + 0.08, position[2]),
                 vec3.fromValues(0, 0, 0),
                 vec3.fromValues(1, 1, 1)
             )
@@ -445,6 +461,91 @@ export default class App {
         this.terrainVertexBuffer = vertexBuffer;
         this.terrainVertexCount = vertexCount;
         console.log(`Terrain compute info set: ${vertexCount} vertices`);
+    }
+
+    setTerrainMetadata(bounds: { west: number; south: number; east: number; north: number }, worldSize: number = 20): void {
+        this.terrainMetadata = { bounds, worldSize };
+    }
+
+    setGHIData(data: Float32Array, width: number, height: number, minGHI: number, maxGHI: number): void {
+        this.ghiData = { data, width, height, minGHI, maxGHI };
+    }
+
+    calculateAverageGHI(): number | null {
+        if (!this.ghiData) return null;
+        const { data } = this.ghiData;
+        let sum = 0;
+        let count = 0;
+        for (let i = 0; i < data.length; i++) {
+            if (data[i] > 0) {
+                sum += data[i];
+                count++;
+            }
+        }
+        return count > 0 ? sum / count : null;
+    }
+
+    updateSolarPanel(areaM2: number): void {
+        const guidance = document.getElementById('solar-guidance');
+        const data = document.getElementById('solar-data');
+        if (!guidance || !data) return;
+
+        const avgGHI = this.calculateAverageGHI();
+        if (avgGHI === null) {
+            guidance.style.display = 'block';
+            data.style.display = 'none';
+            return;
+        }
+
+        // Raw solar energy hitting the surface
+        const rawPower = areaM2 * avgGHI;
+
+        // Estimated electricity with realistic factors:
+        // - Panel efficiency: ~20%
+        // - Coverage ratio: ~60% (not all area can have panels)
+        // - System losses: ~85% efficiency (inverter, cables, etc.)
+        const panelEfficiency = 0.20;
+        const coverageRatio = 0.60;
+        const systemEfficiency = 0.85;
+        const estimatedPower = rawPower * panelEfficiency * coverageRatio * systemEfficiency;
+
+        document.getElementById('solar-area')!.textContent = areaM2.toFixed(0);
+        document.getElementById('solar-ghi')!.textContent = avgGHI.toFixed(2);
+        document.getElementById('solar-power-raw')!.textContent = rawPower.toFixed(0);
+        document.getElementById('solar-power-est')!.textContent = estimatedPower.toFixed(0);
+
+        guidance.style.display = 'none';
+        data.style.display = 'flex';
+    }
+
+    togglePanelVisibility(visible: boolean): void {
+        if (this.panelInstances) {
+            this.panelInstances.visible = visible;
+        }
+    }
+
+    calculateSelectionArea(points: vec3[]): { worldArea: number; realAreaM2: number } | null {
+        if (points.length !== 4 || !this.terrainMetadata) return null;
+
+        const [p0, p1, p2, p3] = points;
+        const worldArea = 0.5 * Math.abs(
+            p0[0] * (p1[1] - p3[1]) +
+            p1[0] * (p2[1] - p0[1]) +
+            p2[0] * (p3[1] - p1[1]) +
+            p3[0] * (p0[1] - p2[1])
+        );
+
+        const { bounds, worldSize } = this.terrainMetadata;
+        const latCenter = (bounds.north + bounds.south) / 2;
+        const metersPerDegreeLat = 111320;
+        const metersPerDegreeLng = 111320 * Math.cos(latCenter * Math.PI / 180);
+
+        const realWidthM = (bounds.east - bounds.west) * metersPerDegreeLng;
+        const realHeightM = (bounds.north - bounds.south) * metersPerDegreeLat;
+        const metersPerWU = (realWidthM + realHeightM) / 2 / worldSize;
+
+        const realAreaM2 = worldArea * metersPerWU * metersPerWU;
+        return { worldArea, realAreaM2 };
     }
 
     private async createPanelInstances(vertices: Float32Array): Promise<void> {

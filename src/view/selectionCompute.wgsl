@@ -70,6 +70,36 @@ fn isInsideSelection(pt: vec2<f32>) -> bool {
     return inTri1 || inTri2;
 }
 
+// ========== Slope calculation ==========
+
+const MAX_SLOPE_DEGREES: f32 = 10.0;  // Maximum allowed slope for panel placement
+const PI: f32 = 3.14159265;
+
+// Calculate slope angle from normal (degrees)
+fn getSlopeAngle(nx: f32, ny: f32, nz: f32) -> f32 {
+    // normal.z = cos(angle) for ground plane XY, height Z
+    let cosAngle = clamp(abs(nz), 0.0, 1.0);
+    return acos(cosAngle) * (180.0 / PI);
+}
+
+// Check if vertex is suitable for panel placement
+fn isValidForPanel(vertex: Vertex) -> bool {
+    let pt = vec2<f32>(vertex.px, vertex.py);
+    
+    // Must be inside selection
+    if (!isInsideSelection(pt)) {
+        return false;
+    }
+    
+    // Must have acceptable slope (≤10°)
+    let slopeAngle = getSlopeAngle(vertex.nx, vertex.ny, vertex.nz);
+    if (slopeAngle > MAX_SLOPE_DEGREES) {
+        return false;
+    }
+    
+    return true;
+}
+
 // ========== Pass 1: Count ==========
 
 @compute @workgroup_size(256)
@@ -82,9 +112,8 @@ fn count_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
     
     let vertex = vertices[idx];
-    let pt = vec2<f32>(vertex.px, vertex.py);  // XY projection (ground plane)
     
-    if (isInsideSelection(pt)) {
+    if (isValidForPanel(vertex)) {
         atomicAdd(&countBuffer.count, 1u);
     }
 }
@@ -101,9 +130,8 @@ fn write_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
     
     let vertex = vertices[idx];
-    let pt = vec2<f32>(vertex.px, vertex.py);
     
-    if (isInsideSelection(pt)) {
+    if (isValidForPanel(vertex)) {
         let writeIdx = atomicAdd(&countBuffer.count, 1u);
         outputVertices[writeIdx] = OutputVertex(vertex.px, vertex.py, vertex.pz);
     }
