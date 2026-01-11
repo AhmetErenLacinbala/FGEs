@@ -347,7 +347,7 @@ export default class MapController {
 
         this.isGenerating = true;
         this.btnGenerate.disabled = true;
-        this.showStatus('🔄 Fetching terrain data...', 'loading');
+        this.showStatus(' Fetching terrain data...', 'loading');
 
         try {
             console.log(`🏔️ Generating terrain at ${this.currentLat}, ${this.currentLng} (scale: ${this.currentScale}m)`);
@@ -359,7 +359,7 @@ export default class MapController {
                 scale: this.currentScale
             });
 
-            this.showStatus('🎨 Building 3D mesh...', 'loading');
+            this.showStatus(' Building 3D mesh...', 'loading');
 
             // Create terrain mesh
             const device = this.app.renderer.getDevice();
@@ -378,7 +378,7 @@ export default class MapController {
             );
 
             // Always fetch satellite imagery (for V key toggle to work)
-            this.showStatus('🛰️ Fetching satellite imagery...', 'loading');
+            this.showStatus(' Fetching satellite imagery...', 'loading');
             const zoom = this.calculateSatelliteZoom(this.currentScale);
 
             const satelliteImage = await MaterialFactory.fetchSatelliteImage(

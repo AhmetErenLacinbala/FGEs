@@ -70,6 +70,7 @@ fn vs_main(
 
 
 fn sign2D(p1: vec2<f32>, p2: vec2<f32>, p3: vec2<f32>) -> f32 {
+    // cross product of p1-p3 and p2-p3
     return (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);
 }
 
@@ -118,17 +119,17 @@ fn fs_main(
     let pt = vec2<f32>(WorldPos.x, WorldPos.y);
     if (isInsideSelectionQuad(pt)) {
         let slopeAngle = getSlopeAngle(WorldNormal);
-        let pulse = (sin(selectionQuad.time) + 1.0) * 0.2 + 0.4; // 0.4-0.6
+        let pulse = (sin(selectionQuad.time) + 1.0) * 0.2 + 0.4;
         
         var slopeColor: vec4<f32>;
         
-        if (slopeAngle <= 5.0) {
+        if (slopeAngle <= 10.0) {
             // 0-5° → İDEAL (Koyu Yeşil)
             slopeColor = vec4<f32>(0.0, 0.8, 0.0, 1.0);
-        } else if (slopeAngle <= 10.0) {
+        } else if (slopeAngle <= 15.0) {
             // 5-10° → KABUL EDİLEBİLİR (Sarı-Yeşil)
             slopeColor = vec4<f32>(0.7, 0.9, 0.0, 1.0);
-        } else if (slopeAngle <= 15.0) {
+        } else if (slopeAngle <= 20.0) {
             // 10-15° → EKONOMİK RİSK (Turuncu)
             slopeColor = vec4<f32>(1.0, 0.6, 0.0, 1.0);
         } else {

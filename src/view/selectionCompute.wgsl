@@ -72,7 +72,7 @@ fn isInsideSelection(pt: vec2<f32>) -> bool {
 
 // ========== Slope calculation ==========
 
-const MAX_SLOPE_DEGREES: f32 = 10.0;  // Maximum allowed slope for panel placement
+const MAX_SLOPE_DEGREES: f32 = 15.0;  // Maximum allowed slope for panel placement
 const PI: f32 = 3.14159265;
 
 // Calculate slope angle from normal (degrees)

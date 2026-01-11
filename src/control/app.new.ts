@@ -43,7 +43,8 @@ export default class App {
     cameraControlActive: boolean = false;
 
     billboardPositions: vec3[] = [];
-    quadCreated: boolean = false;  // Once quad is created, no more billboards
+    billboardObjects: RenderableObject[] = [];
+    quadCreated: boolean = false;
 
     // Terrain compute info
     private terrainVertexBuffer: GPUBuffer | null = null;
@@ -230,7 +231,7 @@ export default class App {
 
 
 
-        // Submesh support - Instance Test
+        // Submesh support
         const instPanelMeshes = await MeshFactory.fromGLTF(device, "models/flat_vase.glb");
         const instPanelMaterial = await MaterialFactory.fromTexture(device, "img/floor.jpg", layout);
 
@@ -243,7 +244,7 @@ export default class App {
             maxInstances: 10000
         });
 
-        this.setTestInstanceCount(500);
+        this.setTestInstanceCount(0);
         this.scene.addInstanced(this.testInstancedMesh);
 
         // Setup instance test buttons
@@ -336,12 +337,6 @@ export default class App {
     async handleClick(event: MouseEvent): Promise<void> {
         if (this.cameraControlActive) return;
 
-        // Quad already created - no more billboards allowed
-        if (this.quadCreated) {
-            console.log(`⛔ Quad already created, no more billboards`);
-            return;
-        }
-
         const rect = this.canvas.getBoundingClientRect();
         const x = event.clientX - rect.left;
         const y = event.clientY - rect.top;
@@ -355,9 +350,15 @@ export default class App {
             return;
         }
 
+
+        if (this.quadCreated) {
+            this.resetSelection();
+        }
+
         // Spawn billboard at clicked position
         this.billboardPositions.push(vec3.clone(worldPos));
-        await this.spawnBillboard(worldPos);
+        const billboard = await this.spawnBillboard(worldPos);
+        this.billboardObjects.push(billboard);
         console.log(`📍 Billboard ${this.billboardPositions.length}/4 at (${worldPos[0].toFixed(2)}, ${worldPos[1].toFixed(2)}, ${worldPos[2].toFixed(2)})`);
 
         // When 4 billboards placed, create quad
@@ -385,6 +386,31 @@ export default class App {
             }
 
         }
+    }
+
+    /**
+     * Reset selection state for a new selection cycle
+     */
+    private resetSelection(): void {
+        for (const billboard of this.billboardObjects) {
+            this.scene.remove(billboard);
+        }
+        this.billboardObjects = [];
+        this.billboardPositions = [];
+        this.renderer.updateSelectionQuad(null);
+
+        if (this.panelInstances) {
+            this.scene.removeInstanced(this.panelInstances);
+            this.panelInstances.destroy();
+            this.panelInstances = null;
+        }
+
+        this.quadCreated = false;
+
+        const guidance = document.getElementById('solar-guidance');
+        const data = document.getElementById('solar-data');
+        if (guidance) guidance.style.display = 'block';
+        if (data) data.style.display = 'none';
     }
 
     private billboardMaterial: { bindGroup: GPUBindGroup } | null = null;
@@ -420,7 +446,7 @@ export default class App {
         console.log(`✅ Quad added to scene`);
     }
 
-    async spawnBillboard(position: vec3): Promise<void> {
+    async spawnBillboard(position: vec3): Promise<RenderableObject> {
         const device = this.renderer.getDevice();
         const layout = this.renderer.getMaterialGroupLayout();
 
@@ -445,6 +471,7 @@ export default class App {
 
         this.scene.add(billboard);
         console.log(` Billboard at (${position[0].toFixed(2)}, ${position[1].toFixed(2)}, ${position[2].toFixed(2)})`);
+        return billboard;
     }
 
     setTerrainComputeInfo(vertexBuffer: GPUBuffer, vertexCount: number): void {
