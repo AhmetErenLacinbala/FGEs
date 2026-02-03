@@ -1,6 +1,7 @@
 import './style.css'
 import App from './control/app.new';
 import MapController from './control/mapController';
+import ParselController from './control/parselController';
 
 // Get API key from environment variable
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
@@ -59,11 +60,19 @@ const canvas: HTMLCanvasElement | null = document.getElementById('gfx-main') as 
         apiKey: GOOGLE_MAPS_API_KEY // Pass API key
     });
 
+    // Initialize parsel controller for TKGM parcel queries
+    const parselController = new ParselController();
+    
+    // Connect parsel controller with map controller for terrain generation
+    parselController.setMapController(mapController);
+
     console.log('🎯 Application initialized with Google Maps integration');
     console.log(`📦 Scene contains ${app.scene.count} objects`);
     console.log('🗺️ Click the map to select a location, then click "Generate Terrain"');
+    console.log('🏛️ Parsel Sorgu tab is available for Turkish land registry queries');
 
     // Expose to console for debugging
     (window as any).app = app;
     (window as any).mapController = mapController;
+    (window as any).parselController = parselController;
 })();

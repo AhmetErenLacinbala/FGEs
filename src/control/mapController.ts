@@ -318,6 +318,22 @@ export default class MapController {
         }
     }
 
+    /**
+     * Public method to set location from external sources (e.g., ParselController)
+     * @param lat Latitude
+     * @param lng Longitude
+     * @param zoom Optional zoom level
+     */
+    public setLocationPublic(lat: number, lng: number, zoom?: number): void {
+        this.setLocation(lat, lng);
+        
+        if (this.map && zoom) {
+            this.map.setZoom(zoom);
+        }
+        
+        console.log(`📍 Location set to: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+    }
+
     private updateInputs(): void {
         this.inputLat.value = this.currentLat.toFixed(4);
         this.inputLng.value = this.currentLng.toFixed(4);

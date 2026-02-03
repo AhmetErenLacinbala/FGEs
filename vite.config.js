@@ -15,6 +15,22 @@ export default defineConfig(({ command, mode }) => {
         ],
         server: {
             port: 3001,
+            proxy: {
+                // TKGM API proxy to bypass CORS
+                '/tkgm-api': {
+                    target: 'https://cbsapi.tkgm.gov.tr',
+                    changeOrigin: true,
+                    rewrite: (path) => path.replace(/^\/tkgm-api/, '/megsiswebapi.v3.1/api'),
+                    secure: true,
+                    configure: (proxy, _options) => {
+                        proxy.on('proxyReq', (proxyReq, _req, _res) => {
+                            proxyReq.setHeader('Referer', 'https://parselsorgu.tkgm.gov.tr/');
+                            proxyReq.setHeader('Origin', 'https://parselsorgu.tkgm.gov.tr');
+                            proxyReq.setHeader('User-Agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36');
+                        });
+                    },
+                },
+            },
         },
         base: "./",
         // Make sure env variables are available in the app

@@ -334,6 +334,141 @@
         text-align: center;
       }
 
+      /* Tab System */
+      .tab-container {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 16px;
+        background: #0f0f14;
+        padding: 4px;
+        border-radius: 8px;
+      }
+
+      .tab-btn {
+        flex: 1;
+        padding: 10px 16px;
+        background: transparent;
+        border: none;
+        border-radius: 6px;
+        color: #888;
+        font-size: 0.85rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .tab-btn:hover {
+        color: #e0e0e0;
+      }
+
+      .tab-btn.active {
+        background: #4ecdc4;
+        color: #0a0a0f;
+      }
+
+      .tab-content {
+        display: none;
+      }
+
+      .tab-content.active {
+        display: block;
+      }
+
+      /* Parsel Sorgu Form */
+      .parsel-form {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .parsel-form .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .parsel-form label {
+        font-size: 0.75rem;
+        color: #888;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .parsel-form select,
+      .parsel-form input[type="text"] {
+        width: 100%;
+        padding: 10px 12px;
+        background: #0f0f14;
+        border: 1px solid #2a2a3a;
+        border-radius: 6px;
+        color: #e0e0e0;
+        font-size: 0.9rem;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+
+      .parsel-form select:focus,
+      .parsel-form input[type="text"]:focus {
+        border-color: #4ecdc4;
+      }
+
+      .parsel-form select:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .parsel-form select option {
+        background: #1a1a24;
+        color: #e0e0e0;
+      }
+
+      .parsel-result {
+        margin-top: 12px;
+        padding: 12px;
+        background: #0f0f14;
+        border-radius: 8px;
+        border: 1px solid #2a2a3a;
+        display: none;
+      }
+
+      .parsel-result.visible {
+        display: block;
+      }
+
+      .parsel-result.error {
+        border-color: #cd4e4e;
+        background: #1a0f0f;
+      }
+
+      .parsel-result .result-title {
+        font-size: 0.75rem;
+        color: #888;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 10px;
+      }
+
+      .parsel-result .result-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 6px 0;
+        border-bottom: 1px solid #1a1a24;
+        font-size: 0.85rem;
+      }
+
+      .parsel-result .result-row:last-child {
+        border-bottom: none;
+      }
+
+      .parsel-result .result-label {
+        color: #666;
+      }
+
+      .parsel-result .result-value {
+        color: #4ecdc4;
+        font-weight: 500;
+      }
+
       .checkbox-option {
         display: flex;
         align-items: center;
@@ -402,6 +537,15 @@
       <aside class="sidebar">
         <h1>Terrain Generator</h1>
 
+        <!-- Tab Navigation -->
+        <div class="tab-container">
+          <button class="tab-btn active" data-tab="map-tab">Harita</button>
+          <button class="tab-btn" data-tab="parsel-tab">Parsel Sorgu</button>
+        </div>
+
+        <!-- Map Tab Content -->
+        <div id="map-tab" class="tab-content active">
+        
         <!-- Map Panel -->
         <div class="panel">
           <div class="panel-title">Select Location</div>
@@ -511,6 +655,87 @@
             <span id="inst-count" style="color: #ffd93d">500</span>
           </div>
         </div>
+        </div>
+        <!-- End of Map Tab Content -->
+
+        <!-- Parsel Sorgu Tab Content -->
+        <div id="parsel-tab" class="tab-content">
+          <div class="panel">
+            <div class="panel-title">Parsel Sorgula</div>
+            
+            <form class="parsel-form" id="parsel-form">
+              <!-- İl (Şehir) Seçimi -->
+              <div class="form-group">
+                <label for="city-select">İl</label>
+                <select id="city-select" name="city">
+                  <option value="">İl Seçiniz</option>
+                </select>
+              </div>
+
+              <!-- İlçe Seçimi -->
+              <div class="form-group">
+                <label for="district-select">İlçe</label>
+                <select id="district-select" name="district" disabled>
+                  <option value="">Önce il seçiniz</option>
+                </select>
+              </div>
+
+              <!-- Mahalle Seçimi -->
+              <div class="form-group">
+                <label for="neighborhood-select">Mahalle</label>
+                <select id="neighborhood-select" name="neighborhood" disabled>
+                  <option value="">Önce ilçe seçiniz</option>
+                </select>
+              </div>
+
+              <!-- Ada No (şimdilik devre dışı) -->
+              <div class="form-group" style="opacity: 0.5;">
+                <label for="block-input">Ada No <span style="font-size: 0.65rem; color: #666;">(opsiyonel)</span></label>
+                <input type="text" id="block-input" name="block" placeholder="Ada numarası" disabled />
+              </div>
+
+              <!-- Parsel No -->
+              <div class="form-group">
+                <label for="parcel-input">Parsel No</label>
+                <input type="text" id="parcel-input" name="parcel" placeholder="Parsel numarasını giriniz" />
+              </div>
+
+              <!-- Sorgula Butonu -->
+              <button type="submit" class="btn btn-primary" id="btn-parsel-search" disabled>
+                Parsel Sorgula
+              </button>
+            </form>
+
+            <!-- Sonuç Alanı -->
+            <div class="parsel-result" id="parsel-result">
+              <div class="result-title">Parsel Bilgileri</div>
+              <div id="parsel-result-content"></div>
+            </div>
+
+            <!-- Status -->
+            <div class="status" id="parsel-status">Yükleniyor...</div>
+          </div>
+
+          <!-- Bilgi Paneli -->
+          <div class="panel">
+            <div class="panel-title">Parsel Sorgu Hakkında</div>
+            <p style="font-size: 0.85rem; color: #888; line-height: 1.5">
+              1. Şehir seçin
+              <br />
+              2. İlçe seçin
+              <br />
+              3. Mahalle seçin
+              <br />
+              4. Parsel numarasını girin
+              <br />
+              5. "Parsel Sorgula" butonuna tıklayın
+            </p>
+            <p style="font-size: 0.75rem; color: #666; margin-top: 10px;">
+              Veri kaynağı: TKGM (Tapu ve Kadastro Genel Müdürlüğü)
+            </p>
+          </div>
+        </div>
+        <!-- End of Parsel Sorgu Tab Content -->
 
         <div id="compcheck"></div>
       </aside>
