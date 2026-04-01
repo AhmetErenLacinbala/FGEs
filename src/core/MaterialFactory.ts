@@ -1,3 +1,5 @@
+import { GLTFRawTextureInfo } from "./MeshFactory";
+
 /**
  * MaterialFactory - Factory for creating material bind groups
  * 
@@ -6,6 +8,7 @@
  *   const material = await MaterialFactory.fromColor(device, [1, 0, 0, 1], layout);
  *   const material = await MaterialFactory.fromGHIData(device, ghiData, width, height, layout);
  *   const material = await MaterialFactory.fromSatelliteImage(device, lat, lng, zoom, size, apiKey, layout);
+ *   const material = await MaterialFactory.fromGLTFTexture(device, rawTextureInfo, layout);
  */
 
 export interface MaterialBindGroup {
@@ -16,6 +19,73 @@ export interface MaterialBindGroup {
 }
 
 export default class MaterialFactory {
+
+    /**
+     * Create material from GLTF raw texture data
+     * Use with MeshFactory.fromGLTFComplete() output
+     */
+    static async fromGLTFTexture(
+        device: GPUDevice,
+        textureInfo: GLTFRawTextureInfo,
+        bindGroupLayout: GPUBindGroupLayout,
+        options: {
+            addressMode?: GPUAddressMode;
+            filterMode?: GPUFilterMode;
+        } = {}
+    ): Promise<MaterialBindGroup> {
+        const { addressMode = 'repeat', filterMode = 'linear' } = options;
+
+        // Create ImageBitmap from raw image data
+        // Copy to new ArrayBuffer to avoid SharedArrayBuffer compatibility issues
+        const imageBytes = new Uint8Array(textureInfo.imageData.length);
+        imageBytes.set(textureInfo.imageData);
+        const blob = new Blob([imageBytes.buffer], { type: textureInfo.mimeType });
+        const imageBitmap = await createImageBitmap(blob);
+
+        // Create GPU texture
+        const texture = device.createTexture({
+            size: [imageBitmap.width, imageBitmap.height, 1],
+            format: 'rgba8unorm',
+            usage: GPUTextureUsage.TEXTURE_BINDING |
+                GPUTextureUsage.COPY_DST |
+                GPUTextureUsage.RENDER_ATTACHMENT
+        });
+
+        // Copy image to texture
+        device.queue.copyExternalImageToTexture(
+            { source: imageBitmap },
+            { texture },
+            [imageBitmap.width, imageBitmap.height]
+        );
+
+        const view = texture.createView({
+            format: 'rgba8unorm',
+            dimension: '2d',
+            aspect: 'all',
+            baseMipLevel: 0,
+            mipLevelCount: 1
+        });
+
+        const sampler = device.createSampler({
+            addressModeU: addressMode,
+            addressModeV: addressMode,
+            magFilter: filterMode,
+            minFilter: filterMode,
+            mipmapFilter: 'linear'
+        });
+
+        const bindGroup = device.createBindGroup({
+            layout: bindGroupLayout,
+            entries: [
+                { binding: 0, resource: view },
+                { binding: 1, resource: sampler }
+            ]
+        });
+
+        console.log(`MaterialFactory: Created texture from GLTF "${textureInfo.name}" (${imageBitmap.width}x${imageBitmap.height})`);
+
+        return { bindGroup, texture, sampler, view };
+    }
 
     /**
      * Create material from Google Maps satellite imagery

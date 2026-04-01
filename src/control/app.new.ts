@@ -18,6 +18,7 @@ import {
     RenderType,
     MeshData
 } from "../core";
+import { geodeticToSceneCoord, MARKERS, EARTH_MODEL } from "../utils";
 
 export default class App {
     canvas: HTMLCanvasElement;
@@ -147,6 +148,52 @@ export default class App {
         const device = this.renderer.getDevice();
         const layout = this.renderer.getMaterialGroupLayout();
 
+        // Earth - using new fromGLTFComplete with embedded textures
+        const earthData = await MeshFactory.fromGLTFComplete(device, "models/earth.glb");
+        for (const item of earthData) {
+            // Use embedded texture if available, otherwise fallback to color
+            const material = item.textures.baseColor
+                ? await MaterialFactory.fromGLTFTexture(device, item.textures.baseColor, layout)
+                : MaterialFactory.fromColor(device, [0.3, 0.5, 0.8, 1], layout);
+
+            const earth = new RenderableObject({
+                mesh: item.mesh,
+                material: material.bindGroup,
+                transform: new Transform(
+                    vec3.fromValues(0, 0, 0),
+                    vec3.fromValues(0, 0, 0),     // Y-up → Z-up 
+                    vec3.fromValues(EARTH_MODEL.MODEL_SCALE, EARTH_MODEL.MODEL_SCALE, EARTH_MODEL.MODEL_SCALE)
+                ),
+            });
+            this.scene.add(earth);
+        }
+
+        // Test: Şehir markerları ekle
+        await this.addCityMarkers(device, layout);
+
+          // Earth - using new fromGLTFComplete with embedded textures
+        /*const earthData = await MeshFactory.fromGLTFComplete(device, "models/glbtest.glb");
+        for (const item of earthData) {
+            // Use embedded texture if available, otherwise fallback to color
+            const material = item.textures.baseColor
+                ? await MaterialFactory.fromGLTFTexture(device, item.textures.baseColor, layout)
+                : MaterialFactory.fromColor(device, [0.3, 0.5, 0.8, 1], layout);
+
+            const earth = new RenderableObject({
+                mesh: item.mesh,
+                material: material.bindGroup,
+                transform: new Transform(
+                    vec3.fromValues(0, 0, 0),
+                    vec3.fromValues(0, 0, 0),     // Y-up → Z-up 
+                    vec3.fromValues(EARTH_MODEL.MODEL_SCALE, EARTH_MODEL.MODEL_SCALE, EARTH_MODEL.MODEL_SCALE)
+                ),
+            });
+            this.scene.add(earth);
+        }
+
+        // Test: Şehir markerları ekle
+        await this.addCityMarkers(device, layout);
+*/
         const vaseMeshes = await MeshFactory.fromGLTF(device, "models/flat_vase.glb");
         const vaseMaterial = await MaterialFactory.fromTexture(device, "img/floor.jpg", layout);
         const panelMeshes = await MeshFactory.fromGLTF(device, "models/panel.glb");
@@ -196,7 +243,7 @@ export default class App {
         this.scene.add(vase2);
 
         // Small circular billboard marker
-        const billboardMesh = MeshFactory.quad(device, 0.15);
+        /*const billboardMesh = MeshFactory.quad(device, 0.15);
         const billboardMaterial = await MaterialFactory.fromColor(device, [1, 0.2, 0, 1], layout);
 
         const billboard = new RenderableObject({
@@ -208,7 +255,7 @@ export default class App {
                 vec3.fromValues(0, 0, 0)
             )
         });
-        this.scene.add(billboard);
+        this.scene.add(billboard);*/
 
         //Create spinning triangles
         for (let y = -5; y <= 5; y++) {
@@ -602,6 +649,44 @@ export default class App {
 
         const realAreaM2 = worldArea * metersPerWU * metersPerWU;
         return { worldArea, realAreaM2 };
+    }
+
+    /**
+     * Markerları ekler (Billboard kullanarak)
+     * MARKERS array'indeki tüm markerları gösterir
+     */
+    private async addCityMarkers(device: GPUDevice, layout: GPUBindGroupLayout): Promise<void> {
+        for (const marker of MARKERS) {
+            // Sahne koordinatını hesapla
+            const scenePos = geodeticToSceneCoord(marker.latitude, marker.longitude, marker.height);
+
+            // Y-up → Z-up rotasyonu için koordinatları ayarla
+            const adjustedPos = {
+                x: scenePos.x,
+                y: -scenePos.z,
+                z: scenePos.y
+            };
+
+            // Billboard mesh ve material
+            const markerMesh = MeshFactory.quad(device, 0.3);
+            const markerMaterial = MaterialFactory.fromColor(device, marker.color, layout);
+
+            const markerObj = new RenderableObject({
+                mesh: markerMesh,
+                material: markerMaterial.bindGroup,
+                renderType: RenderType.Billboard,
+                transform: new Transform(
+                    vec3.fromValues(adjustedPos.x, adjustedPos.y, adjustedPos.z),
+                    vec3.fromValues(0, 0, 0),
+                    vec3.fromValues(1, 1, 1)
+                ),
+            });
+
+            this.scene.add(markerObj);
+            console.log(`📍 ${marker.label}: (${marker.latitude}, ${marker.longitude}) → (${adjustedPos.x.toFixed(3)}, ${adjustedPos.y.toFixed(3)}, ${adjustedPos.z.toFixed(3)})`);
+        }
+
+        console.log(`✅ ${MARKERS.length} marker eklendi`);
     }
 
     private async createPanelInstances(vertices: Float32Array): Promise<void> {

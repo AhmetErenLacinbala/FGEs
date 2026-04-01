@@ -1,6 +1,49 @@
-import { WebIO, Primitive } from "@gltf-transform/core";
+import { WebIO, Primitive, Texture as GLTFTexture } from "@gltf-transform/core";
 import { vec3 } from "gl-matrix";
 import { MeshData, createMeshData, STANDARD_BUFFER_LAYOUT, TERRAIN_BUFFER_LAYOUT } from "./MeshData";
+
+/**
+ * Buffer layout for GLTF models: position (vec3) + normal (vec3) + uv (vec2)
+ * Total: 8 floats = 32 bytes per vertex
+ */
+export const GLTF_BUFFER_LAYOUT: GPUVertexBufferLayout = {
+    arrayStride: 8 * 4,
+    attributes: [
+        { shaderLocation: 0, format: 'float32x3', offset: 0 },      // position
+        { shaderLocation: 1, format: 'float32x3', offset: 3 * 4 },  // normal
+        { shaderLocation: 2, format: 'float32x2', offset: 6 * 4 },  // uv
+    ]
+};
+
+/**
+ * Raw texture info extracted from GLTF (no GPU resources)
+ * Use MaterialFactory.fromGLTFTexture() to create GPU texture
+ */
+export interface GLTFRawTextureInfo {
+    /** Raw image bytes (PNG/JPEG encoded) */
+    imageData: Uint8Array;
+    /** MIME type (e.g., "image/png", "image/jpeg") */
+    mimeType: string;
+    /** Texture name from GLTF */
+    name: string;
+}
+
+/**
+ * Texture collection from GLTF material
+ * Currently only baseColor is supported (basic PBR)
+ */
+export interface GLTFTextureSet {
+    baseColor?: GLTFRawTextureInfo;
+}
+
+/**
+ * Complete mesh data from GLTF including raw texture info
+ */
+export interface GLTFMeshData {
+    mesh: MeshData;
+    textures: GLTFTextureSet;
+    name: string;
+}
 
 /**
  * MeshFactory - Factory for creating meshes from various sources
@@ -170,6 +213,7 @@ export default class MeshFactory {
 
     /**
      * Returns array of MeshData, one for each primitive across all meshes
+     * (Legacy method - does not include normals or textures)
      */
     static async fromGLTF(device: GPUDevice, url: string): Promise<MeshData[]> {
         const io = new WebIO();
@@ -195,6 +239,126 @@ export default class MeshFactory {
 
         console.log(`MeshFactory: Loaded ${result.length} submeshes from ${url}`);
         return result;
+    }
+
+    /**
+     * Load complete GLTF/GLB with normals and raw texture data
+     * Returns array of GLTFMeshData with mesh and raw texture info
+     * Use MaterialFactory.fromGLTFTexture() to create GPU textures
+     */
+    static async fromGLTFComplete(device: GPUDevice, url: string): Promise<GLTFMeshData[]> {
+        const io = new WebIO();
+        const document = await io.read(url);
+        const root = document.getRoot();
+        const meshes = root.listMeshes();
+
+        if (meshes.length === 0) {
+            throw new Error(`No meshes found in glTF file: ${url}`);
+        }
+
+        // Cache for raw texture data to avoid duplicates
+        const textureCache = new Map<GLTFTexture, GLTFRawTextureInfo>();
+
+        const result: GLTFMeshData[] = [];
+
+        for (let meshIdx = 0; meshIdx < meshes.length; meshIdx++) {
+
+            const mesh = meshes[meshIdx];
+            const primitives = mesh.listPrimitives();
+
+            for (let primIdx = 0; primIdx < primitives.length; primIdx++) {
+                const primitive = primitives[primIdx];
+                const name = mesh.getName() || `mesh_${meshIdx}_prim_${primIdx}`;
+
+                // Parse mesh with normals
+                const meshData = this.parsePrimitiveWithNormals(device, primitive, name);
+
+                // Parse material textures (raw data only)
+                const material = primitive.getMaterial();
+                const textures: GLTFTextureSet = {};
+
+                if (material) {
+                    // Only extract baseColor for basic PBR support
+                    const baseColorTex = material.getBaseColorTexture();
+                    if (baseColorTex) {
+                        textures.baseColor = this.extractRawTexture(baseColorTex, textureCache, 'baseColor');
+                    }
+                }
+
+                result.push({ mesh: meshData, textures, name });
+            }
+        }
+
+        const textureCount = Object.values(result).reduce((sum, m) =>
+            sum + Object.keys(m.textures).length, 0);
+        console.log(`MeshFactory: Loaded ${result.length} meshes with ${textureCount} textures from ${url}`);
+        return result;
+    }
+
+    /**
+     * Extract raw texture data from GLTF texture (no GPU resources)
+     */
+    private static extractRawTexture(
+        gltfTexture: GLTFTexture,
+        cache: Map<GLTFTexture, GLTFRawTextureInfo>,
+        type: string
+    ): GLTFRawTextureInfo | undefined {
+        // Check cache first
+        const cached = cache.get(gltfTexture);
+        if (cached) return cached;
+
+        const imageData = gltfTexture.getImage();
+        if (!imageData) {
+            console.warn(`Texture has no image data: ${type}`);
+            return undefined;
+        }
+
+        // Copy to new Uint8Array to avoid SharedArrayBuffer issues
+        const imageBytes = new Uint8Array(imageData.length);
+        imageBytes.set(imageData);
+
+        const textureInfo: GLTFRawTextureInfo = {
+            imageData: imageBytes,
+            mimeType: gltfTexture.getMimeType(),
+            name: gltfTexture.getName() || `${type}_texture`
+        };
+
+        cache.set(gltfTexture, textureInfo);
+        return textureInfo;
+    }
+
+    /**
+     * Parse primitive with positions and UVs (standard layout for current renderer)
+     * Note: Normals are extracted but not used until PBR pipeline is implemented
+     */
+    private static parsePrimitiveWithNormals(device: GPUDevice, primitive: Primitive, name: string): MeshData {
+        const positions = primitive.getAttribute('POSITION')?.getArray();
+        const uvs = primitive.getAttribute('TEXCOORD_0')?.getArray();
+        const indicesArray = primitive.getIndices()?.getArray();
+
+        if (!positions) {
+            throw new Error(`Missing position data in primitive: ${name}`);
+        }
+
+        const vertexCount = positions.length / 3;
+        // 5 floats per vertex: position(3) + uv(2) - matches STANDARD_BUFFER_LAYOUT
+        const vertices = new Float32Array(vertexCount * 5);
+
+        for (let i = 0; i < vertexCount; i++) {
+            const idx = i * 5;
+
+            // Position
+            vertices[idx + 0] = -positions[i * 3 + 0];
+            vertices[idx + 2] = positions[i * 3 + 1];
+            vertices[idx + 1] = positions[i * 3 + 2];
+
+            // UV
+            vertices[idx + 3] = uvs ? uvs[i * 2 + 0] : 0;
+            vertices[idx + 4] = uvs ? uvs[i * 2 + 1] : 0;
+        }
+
+        const indices = indicesArray ? new Uint32Array(indicesArray) : undefined;
+        return createMeshData(device, vertices, indices, STANDARD_BUFFER_LAYOUT);
     }
 
     /**

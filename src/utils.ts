@@ -15,19 +15,19 @@ const WGS84 = {
 
 
 //coordinate Transforms
-interface GeodeticCoord {
+export interface GeodeticCoord {
     latitude: number;
     longitude: number;
     height: number;
 }
 
-interface CartesianCoord {
+export interface CartesianCoord {
     x: number;
     y: number;
     z: number;
 }
 
-function geodeticToECEF(geo: GeodeticCoord): CartesianCoord {
+export function geodeticToECEF(geo: GeodeticCoord): CartesianCoord {
     // Dereceyi radyana çevir
     const latRad = geo.latitude * Math.PI / 180;
     const lonRad = geo.longitude * Math.PI / 180;
@@ -50,7 +50,7 @@ function geodeticToECEF(geo: GeodeticCoord): CartesianCoord {
     return { x, y, z };
 }
 
-function ecefToGeodetic(cart: CartesianCoord): GeodeticCoord {
+export function ecefToGeodetic(cart: CartesianCoord): GeodeticCoord {
     const { x, y, z } = cart;
 
     // Boylam doğrudan hesaplanabilir
@@ -91,3 +91,74 @@ function ecefToGeodetic(cart: CartesianCoord): GeodeticCoord {
         height: altitude
     };
 }
+
+// Earth model sabitleri
+export const EARTH_MODEL = {
+    RADIUS: 6378137,           // WGS84 ekvatoral yarıçap (metre)
+    MODEL_RADIUS: 500,         // Blender model yarıçapı (metre)
+    MODEL_SCALE: 0.01,         // Sahnedeki scale faktörü
+};
+
+/**
+ * Geodetik koordinatları (lat/lon/height) sahne koordinatlarına çevirir
+ * Dünya modeli için kullanılır
+ */
+export function geodeticToSceneCoord(
+    latitude: number,
+    longitude: number,
+    height: number = 0
+): CartesianCoord {
+    // ECEF koordinatlarını hesapla
+    const ecef = geodeticToECEF({ latitude, longitude, height });
+
+    // Model ölçeğine normalize et
+    const scaleFactor = (EARTH_MODEL.MODEL_RADIUS * EARTH_MODEL.MODEL_SCALE) / EARTH_MODEL.RADIUS;
+
+    return {
+        x: ecef.x * scaleFactor,
+        y: ecef.y * scaleFactor,
+        z: ecef.z * scaleFactor
+    };
+}
+
+/**
+ * Sahne koordinatlarını geodetik koordinatlara çevirir
+ */
+export function sceneCoordToGeodetic(
+    x: number,
+    y: number,
+    z: number
+): GeodeticCoord {
+    // Ölçeği geri al
+    const scaleFactor = EARTH_MODEL.RADIUS / (EARTH_MODEL.MODEL_RADIUS * EARTH_MODEL.MODEL_SCALE);
+
+    const ecef: CartesianCoord = {
+        x: x * scaleFactor,
+        y: y * scaleFactor,
+        z: z * scaleFactor
+    };
+
+    return ecefToGeodetic(ecef);
+}
+
+/**
+ * Marker verisi - koordinat + renk + label
+ */
+export interface MarkerData {
+    latitude: number;
+    longitude: number;
+    height: number;
+    color: [number, number, number, number];
+    label: string;
+}
+
+/**
+ * Tüm markerlar - array olarak tek yerden yönetim
+ */
+export const MARKERS: MarkerData[] = [
+    //{ latitude: 90, longitude: 0, height: 0, color: [1, 1, 1, 1], label: "Kuzey Kutbu" },
+    //{ latitude: -90, longitude: 0, height: 0, color: [0.5, 0.5, 0.5, 1], label: "Güney Kutbu" },
+    { latitude: 41.0082, longitude: 28.9784, height: 0, color: [1, 1, 0, 1], label: "İstanbul" },/*
+    { latitude: 39.9334, longitude: 32.8597, height: 850, color: [0, 0, 1, 1], label: "Ankara" },*/
+    //{ latitude: 0, longitude: 0, height: 0, color: [0, 1, 1, 1], label: "Ekvator-Greenwich" },
+];
