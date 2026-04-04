@@ -192,6 +192,7 @@ export class TileController {
       console.log('🎯 Generating tile with request:', request);
 
       const data = await this.terrainService.generateTile(request);
+      console.log('@generateTile in tileController.ts: Tile data:', data);
 
 
       this.displayTileResults(data);
@@ -361,6 +362,7 @@ export class TileController {
   async generateTileData(request: TerrainTileRequest): Promise<TileHeightmapData> {
     try {
       const data = await this.terrainService.generateTile(request);
+      console.log('@generateTile in tileController.ts: Tile data:', data);
       this.displayTileResults(data);
       this.updateCacheInfo();
       return data;

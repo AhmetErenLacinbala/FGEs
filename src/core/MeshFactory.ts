@@ -1,6 +1,7 @@
 import { WebIO, Primitive, Texture as GLTFTexture } from "@gltf-transform/core";
 import { vec3 } from "gl-matrix";
 import { MeshData, createMeshData, STANDARD_BUFFER_LAYOUT, TERRAIN_BUFFER_LAYOUT } from "./MeshData";
+import { geodeticToSceneCoord } from "../utils";
 
 /**
  * Buffer layout for GLTF models: position (vec3) + normal (vec3) + uv (vec2)
@@ -508,6 +509,111 @@ export default class MeshFactory {
         }
 
         console.log(`MeshFactory: Terrain ${cols}x${rows} with normals, height: ${minHeight.toFixed(1)}m - ${maxHeight.toFixed(1)}m`);
+
+        return createMeshData(device, vertices, indices, TERRAIN_BUFFER_LAYOUT, GPUBufferUsage.STORAGE);
+    }
+
+    /**
+     * Create terrain mesh with vertices at true ECEF-scaled positions.
+     * Each heightmap pixel is placed at its real geodetic coordinate on the globe.
+     */
+    static fromHeightmapGeodetic(
+        device: GPUDevice,
+        heightData: Float32Array,
+        width: number,
+        height: number,
+        bounds: { west: number; south: number; east: number; north: number },
+        heightExaggeration: number = 100
+    ): MeshData {
+        if (heightData.length !== width * height) {
+            throw new Error(`Heightmap data size mismatch: expected ${width * height}, got ${heightData.length}`);
+        }
+
+        const cols = width;
+        const rows = height;
+
+        // Build a position lookup so normals can reference neighbors
+        const positions = new Float32Array(rows * cols * 3);
+        for (let row = 0; row < rows; row++) {
+            for (let col = 0; col < cols; col++) {
+                const lat = bounds.north - row * (bounds.north - bounds.south) / (rows - 1);
+                const lon = bounds.west + col * (bounds.east - bounds.west) / (cols - 1);
+                const elev = heightData[row * cols + col] * heightExaggeration;
+                const p = geodeticToSceneCoord(lat, lon, elev);
+                const i3 = (row * cols + col) * 3;
+                positions[i3] = p.x;
+                positions[i3 + 1] = p.y;
+                positions[i3 + 2] = p.z;
+            }
+        }
+
+        const getPos = (row: number, col: number): vec3 => {
+            const r = Math.max(0, Math.min(rows - 1, row));
+            const c = Math.max(0, Math.min(cols - 1, col));
+            const i3 = (r * cols + c) * 3;
+            return vec3.fromValues(positions[i3], positions[i3 + 1], positions[i3 + 2]);
+        };
+
+        // 8 floats per vertex: pos(3) + normal(3) + uv(2)
+        const vertices = new Float32Array(rows * cols * 8);
+
+        for (let row = 0; row < rows; row++) {
+            for (let col = 0; col < cols; col++) {
+                const idx = (row * cols + col) * 8;
+                const center = getPos(row, col);
+
+                // Edge vectors to neighbors
+                const left  = vec3.create(); vec3.sub(left,  getPos(row, col - 1), center);
+                const right = vec3.create(); vec3.sub(right, getPos(row, col + 1), center);
+                const down  = vec3.create(); vec3.sub(down,  getPos(row + 1, col), center);
+                const up    = vec3.create(); vec3.sub(up,    getPos(row - 1, col), center);
+
+                const sumNormal = vec3.fromValues(0, 0, 0);
+                const temp = vec3.create();
+
+                if (col > 0 && row < rows - 1) { vec3.cross(temp, left, down); vec3.add(sumNormal, sumNormal, temp); }
+                if (col < cols - 1 && row < rows - 1) { vec3.cross(temp, down, right); vec3.add(sumNormal, sumNormal, temp); }
+                if (col < cols - 1 && row > 0) { vec3.cross(temp, right, up); vec3.add(sumNormal, sumNormal, temp); }
+                if (col > 0 && row > 0) { vec3.cross(temp, up, left); vec3.add(sumNormal, sumNormal, temp); }
+
+                vec3.normalize(sumNormal, sumNormal);
+                if (vec3.length(sumNormal) < 0.001) {
+                    vec3.normalize(sumNormal, center);
+                }
+
+                vertices[idx + 0] = center[0];
+                vertices[idx + 1] = center[1];
+                vertices[idx + 2] = center[2];
+                vertices[idx + 3] = sumNormal[0];
+                vertices[idx + 4] = sumNormal[1];
+                vertices[idx + 5] = sumNormal[2];
+                vertices[idx + 6] = col / (cols - 1);
+                vertices[idx + 7] = row / (rows - 1);
+            }
+        }
+
+        const numQuads = (rows - 1) * (cols - 1);
+        const indices = new Uint32Array(numQuads * 6);
+        let indexIdx = 0;
+
+        for (let row = 0; row < rows - 1; row++) {
+            for (let col = 0; col < cols - 1; col++) {
+                const tl = row * cols + col;
+                const tr = tl + 1;
+                const bl = (row + 1) * cols + col;
+                const br = bl + 1;
+
+                indices[indexIdx++] = tl;
+                indices[indexIdx++] = bl;
+                indices[indexIdx++] = tr;
+
+                indices[indexIdx++] = tr;
+                indices[indexIdx++] = bl;
+                indices[indexIdx++] = br;
+            }
+        }
+
+        console.log(`MeshFactory: ECEF terrain ${cols}x${rows}, bounds: [${bounds.south.toFixed(4)}, ${bounds.west.toFixed(4)}] → [${bounds.north.toFixed(4)}, ${bounds.east.toFixed(4)}]`);
 
         return createMeshData(device, vertices, indices, TERRAIN_BUFFER_LAYOUT, GPUBufferUsage.STORAGE);
     }

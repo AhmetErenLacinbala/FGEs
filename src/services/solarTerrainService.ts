@@ -133,6 +133,72 @@ export class SolarTerrainService {
         }
     }
 
+    async generateTileFromBounds(bounds: {
+        north: number; south: number; east: number; west: number;
+    }, scale: number = 10): Promise<ProcessedTileData> {
+        const response = await apiService.generateTerrain({
+            north: bounds.north,
+            south: bounds.south,
+            east: bounds.east,
+            west: bounds.west,
+            scale
+        });
+
+        if (!response.ok) {
+            throw new Error(`Backend error: ${response.status} ${response.statusText}`);
+        }
+
+        const tileResponse: TileResponse = await response.json();
+
+        const [heightmapData, solarData] = await Promise.all([
+            this.downloadAndProcessHeightmap(tileResponse.cacheInfo.downloadUrl),
+            this.downloadAndProcessSolarData(apiService.getGHIDataUrl(tileResponse.cacheInfo.ghiTileUrl))
+        ]);
+
+        const tileId = `bounds_${bounds.west}_${bounds.south}_${bounds.east}_${bounds.north}_${scale}`;
+        const processedTile: ProcessedTileData = {
+            tileId,
+            bounds: tileResponse.cacheInfo.region,
+            center: tileResponse.cacheInfo.centerCoordinates,
+            heightmap: heightmapData,
+            solarData: solarData,
+            heightmapUrl: tileResponse.cacheInfo.downloadUrl,
+            solarUrl: apiService.getGHIDataUrl(tileResponse.cacheInfo.ghiTileUrl)
+        };
+
+        this.tileCache.set(tileId, processedTile);
+        return processedTile;
+    }
+
+    async fetchLodTile(level: number, x: number, y: number): Promise<ProcessedTileData> {
+        const response = await apiService.getLodTile(level, x, y);
+
+        if (!response.ok) {
+            throw new Error(`LOD tile error: ${response.status} ${response.statusText}`);
+        }
+
+        const tileResponse: TileResponse = await response.json();
+
+        const [heightmapData, solarData] = await Promise.all([
+            this.downloadAndProcessHeightmap(tileResponse.cacheInfo.downloadUrl),
+            this.downloadAndProcessSolarData(apiService.getGHIDataUrl(tileResponse.cacheInfo.ghiTileUrl))
+        ]);
+
+        const tileId = `lod_${level}_${x}_${y}`;
+        const processedTile: ProcessedTileData = {
+            tileId,
+            bounds: tileResponse.cacheInfo.region,
+            center: tileResponse.cacheInfo.centerCoordinates,
+            heightmap: heightmapData,
+            solarData: solarData,
+            heightmapUrl: tileResponse.cacheInfo.downloadUrl,
+            solarUrl: apiService.getGHIDataUrl(tileResponse.cacheInfo.ghiTileUrl)
+        };
+
+        this.tileCache.set(tileId, processedTile);
+        return processedTile;
+    }
+
     private async downloadAndProcessHeightmap(downloadUrl: string): Promise<ProcessedTileData['heightmap']> {
         try {
             console.log('📥 Downloading heightmap:', downloadUrl);

@@ -54,7 +54,7 @@ export class ApiService {
         centerLng: number;
         scale?: number;
     }): Promise<Response> {
-        console.log('🚀 Generating terrain tile...', request);
+        console.log('@generateTile in apiService.ts: Generating terrain tile...', request);
 
         return fetch(this.config.getEndpoint('/terrain/generate-tile'), {
             method: 'POST',
@@ -63,6 +63,43 @@ export class ApiService {
         });
     }
 
+
+    async generateTileWithBounds(request: {
+        centerLat: number;
+        centerLng: number;
+        scale?: number;
+        bounds?: { west: number; south: number; east: number; north: number };
+    }): Promise<Response> {
+        console.log('@generateTileWithBounds: Generating tile with custom bounds...', request);
+
+        return fetch(this.config.getEndpoint('/terrain/generate-tile'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(request)
+        });
+    }
+
+    async generateTerrain(request: {
+        north: number;
+        south: number;
+        east: number;
+        west: number;
+        scale: number;
+    }): Promise<Response> {
+        return fetch(this.config.getEndpoint('/terrain/generate'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(request)
+        });
+    }
+
+    async getLodConfig(): Promise<Response> {
+        return fetch(this.config.getEndpoint('/terrain/lod/config'));
+    }
+
+    async getLodTile(level: number, x: number, y: number): Promise<Response> {
+        return fetch(this.config.getEndpoint(`/terrain/lod/${level}/${x}/${y}`));
+    }
 
     async downloadFile(downloadUrl: string): Promise<Response> {
         console.log('📥 Downloading file:', downloadUrl);

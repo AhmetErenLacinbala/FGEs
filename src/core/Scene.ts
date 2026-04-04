@@ -170,6 +170,15 @@ export default class Scene {
     }
 
     /**
+     * Set camera position and euler angles directly
+     */
+    setCameraPosition(position: vec3, theta: number, phi: number): void {
+        vec3.copy(this._camera.position, position);
+        this._camera.eulers[2] = theta;
+        this._camera.eulers[1] = phi;
+    }
+
+    /**
      * Move the camera
      */
     moveCamera(forwards: number, right: number, up: number): void {

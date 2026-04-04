@@ -7,6 +7,7 @@ import App from './app.new';
 import { solarTerrainService } from '../services/solarTerrainService';
 import { MeshFactory, MaterialFactory, RenderableObject, Transform, RenderType } from '../core';
 import { vec3 } from 'gl-matrix';
+import { geodeticToSceneCoord } from '../utils';
 
 declare global {
     interface Window {
@@ -99,6 +100,14 @@ export default class MapController {
         this.btnGenerate.addEventListener('click', () => {
             this.generateTerrain();
         });
+
+        // Large test tile button
+        const btnLarge = document.getElementById('btn-generate-large');
+        if (btnLarge) {
+            btnLarge.addEventListener('click', () => {
+                this.generateLargeTile();
+            });
+        }
 
         // Quick location buttons
         document.querySelectorAll('.quick-loc-btn').forEach(btn => {
@@ -374,6 +383,239 @@ export default class MapController {
                 centerLng: this.currentLng,
                 scale: this.currentScale
             });
+
+            this.showStatus(' Building 3D mesh...', 'loading');
+
+            const device = this.app.renderer.getDevice();
+            const terrainLayout = this.app.renderer.getTerrainMaterialGroupLayout();
+            const blendBuffer = this.app.renderer.getBlendSettingsBuffer();
+
+            const terrainMesh = MeshFactory.fromHeightmapGeodetic(
+                device,
+                tileData.heightmap.elevationData,
+                tileData.heightmap.width,
+                tileData.heightmap.height,
+                tileData.bounds
+            );
+
+            // Always fetch satellite imagery (for V key toggle to work)
+            this.showStatus(' Fetching satellite imagery...', 'loading');
+            const zoom = this.calculateSatelliteZoom(this.currentScale);
+
+            const satelliteImage = await MaterialFactory.fetchSatelliteImage(
+                this.currentLat,
+                this.currentLng,
+                this.apiKey,
+                { zoom, size: 640, scale: 2 }
+            );
+
+            // Set initial opacity based on checkbox and slider state
+            const useSatellite = this.useSatelliteCheckbox?.checked ?? false;
+            const sliderOpacity = parseInt(this.satelliteOpacitySlider?.value ?? '20') / 100;
+            this.app.renderer.updateBlendSettings(useSatellite ? sliderOpacity : 0);
+
+            // Create dual-texture terrain material
+            const terrainMaterial = MaterialFactory.createTerrainMaterial(
+                device,
+                {
+                    data: tileData.solarData.ghiData,
+                    width: tileData.solarData.width,
+                    height: tileData.solarData.height,
+                    minGHI: tileData.solarData.minGHI,
+                    maxGHI: tileData.solarData.maxGHI
+                },
+                { data: satelliteImage },
+                terrainLayout,
+                blendBuffer,
+                this.app.renderer.getSelectionQuadBuffer()
+            );
+
+            // Remove previous objects and add terrain at its ECEF position
+            for (const object of this.app.scene.getAll()) {
+                this.app.scene.removeById(object.id);
+            }
+
+            const terrain = new RenderableObject({
+                mesh: terrainMesh,
+                material: terrainMaterial.bindGroup,
+                renderType: RenderType.Terrain,
+                transform: new Transform()
+            });
+
+            this.app.scene.add(terrain);
+
+            this.app.setTerrainComputeInfo(
+                terrainMesh.vertexBuffer,
+                terrainMesh.vertexCount
+            );
+            this.app.setTerrainMetadata(tileData.bounds, 20);
+            this.app.setGHIData(
+                tileData.solarData.ghiData,
+                tileData.solarData.width,
+                tileData.solarData.height,
+                tileData.solarData.minGHI,
+                tileData.solarData.maxGHI
+            );
+
+            this.positionCameraAtTile(this.currentLat, this.currentLng);
+
+            this.showStatus(`✅ Terrain loaded! (${tileData.heightmap.width}x${tileData.heightmap.height})`, 'success');
+            console.log('✅ ECEF terrain at', this.currentLat, this.currentLng);
+
+            setTimeout(() => this.hideStatus(), 3000);
+
+        } catch (error) {
+            console.error('❌ Failed to generate terrain:', error);
+            this.showStatus(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+        } finally {
+            this.isGenerating = false;
+            this.btnGenerate.disabled = false;
+        }
+    }
+
+    /**
+     * Position the camera slightly above the terrain tile, looking inward toward globe center.
+     */
+    private positionCameraAtTile(lat: number, lng: number): void {
+        const center = geodeticToSceneCoord(lat, lng, 0);
+        const radial = vec3.fromValues(center.x, center.y, center.z);
+        const dist = vec3.length(radial);
+        vec3.normalize(radial, radial);
+
+        // Place camera slightly above the tile surface
+        const viewDist = dist * 0.002;
+        const camPos: vec3 = [
+            center.x + radial[0] * viewDist,
+            center.y + radial[1] * viewDist,
+            center.z + radial[2] * viewDist
+        ];
+
+        // Compute euler angles: theta (azimuth in XY plane), phi (elevation)
+        const theta = Math.atan2(radial[1], radial[0]) * 180 / Math.PI + 180;
+        const phi = Math.asin(radial[2]) * 180 / Math.PI + 180;
+
+        this.app.setCameraPosition(camPos, theta, phi);
+    }
+
+    /**
+     * Generate a large tile (~1 degree span) for testing ECEF placement with a more navigable size.
+     */
+    async generateLargeTile(): Promise<void> {
+        if (this.isGenerating) return;
+
+        this.isGenerating = true;
+        this.btnGenerate.disabled = true;
+        this.showStatus('Fetching large test tile...', 'loading');
+
+        try {
+            const span = 10;
+            const bounds = {
+                west: this.currentLng - span,
+                south: this.currentLat - span,
+                east: this.currentLng + span,
+                north: this.currentLat + span
+            };
+
+            console.log(`🏔️ Large tile at ${this.currentLat}, ${this.currentLng}, bounds:`, bounds);
+
+            const tileData = await solarTerrainService.generateCompleteTile({
+                centerLat: this.currentLat,
+                centerLng: this.currentLng,
+                scale: 1000
+            });
+
+            // Override bounds with our wider ones
+            tileData.bounds = bounds;
+
+            this.showStatus('Building 3D mesh...', 'loading');
+
+            const device = this.app.renderer.getDevice();
+            const terrainLayout = this.app.renderer.getTerrainMaterialGroupLayout();
+            const blendBuffer = this.app.renderer.getBlendSettingsBuffer();
+
+            const terrainMesh = MeshFactory.fromHeightmapGeodetic(
+                device,
+                tileData.heightmap.elevationData,
+                tileData.heightmap.width,
+                tileData.heightmap.height,
+                tileData.bounds
+            );
+
+            this.showStatus('Fetching satellite imagery...', 'loading');
+            const satelliteImage = await MaterialFactory.fetchSatelliteImage(
+                this.currentLat,
+                this.currentLng,
+                this.apiKey,
+                { zoom: 10, size: 640, scale: 2 }
+            );
+
+            const useSatellite = this.useSatelliteCheckbox?.checked ?? false;
+            const sliderOpacity = parseInt(this.satelliteOpacitySlider?.value ?? '20') / 100;
+            this.app.renderer.updateBlendSettings(useSatellite ? sliderOpacity : 0);
+
+            const terrainMaterial = MaterialFactory.createTerrainMaterial(
+                device,
+                {
+                    data: tileData.solarData.ghiData,
+                    width: tileData.solarData.width,
+                    height: tileData.solarData.height,
+                    minGHI: tileData.solarData.minGHI,
+                    maxGHI: tileData.solarData.maxGHI
+                },
+                { data: satelliteImage },
+                terrainLayout,
+                blendBuffer,
+                this.app.renderer.getSelectionQuadBuffer()
+            );
+
+            for (const object of this.app.scene.getAll()) {
+                this.app.scene.removeById(object.id);
+            }
+
+            const terrain = new RenderableObject({
+                mesh: terrainMesh,
+                material: terrainMaterial.bindGroup,
+                renderType: RenderType.Terrain,
+                transform: new Transform()
+            });
+
+            this.app.scene.add(terrain);
+
+            this.app.setTerrainComputeInfo(terrainMesh.vertexBuffer, terrainMesh.vertexCount);
+            this.app.setTerrainMetadata(tileData.bounds, 20);
+
+            this.positionCameraAtTile(this.currentLat, this.currentLng);
+
+            this.showStatus(`✅ Large tile loaded! (${tileData.heightmap.width}x${tileData.heightmap.height})`, 'success');
+            console.log('✅ Large ECEF terrain at', this.currentLat, this.currentLng);
+
+            setTimeout(() => this.hideStatus(), 3000);
+
+        } catch (error) {
+            console.error('❌ Failed to generate large tile:', error);
+            this.showStatus(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+        } finally {
+            this.isGenerating = false;
+            this.btnGenerate.disabled = false;
+        }
+    }
+
+    async generateRealPositions(): Promise<void> {
+        if (this.isGenerating) return;
+        this.isGenerating = true;
+        this.btnGenerate.disabled = true;
+        this.showStatus(' Fetching terrain data...', 'loading');
+
+        try {
+            console.log(`🏔️ Generating terrain at ${this.currentLat}, ${this.currentLng} (scale: ${this.currentScale}m)`);
+
+            // Fetch terrain data from backend
+            const tileData = await solarTerrainService.generateCompleteTile({
+                centerLat: this.currentLat,
+                centerLng: this.currentLng,
+                scale: this.currentScale
+            });
+            console.log("tileData in mapController.ts: ", tileData)
 
             this.showStatus(' Building 3D mesh...', 'loading');
 
