@@ -113,7 +113,7 @@ export default class App {
         this.panelMaterial = await MaterialFactory.fromTexture(this.renderer.getDevice(), "img/panelbaked.png", this.renderer.getMaterialGroupLayout());
 
         const earthTileManager = new EarthTileManager(this);
-        earthTileManager.startFetching(2);
+        earthTileManager.startFetching(6);
     }
 
 
