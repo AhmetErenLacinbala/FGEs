@@ -100,6 +100,10 @@ export default class EarthTileManager {
         const done = this.tileStates.filter(t => t.status === 'done').length;
         const errors = this.tileStates.filter(t => t.status === 'error').length;
         console.log(`🌍 LOD${level} complete: ${done} done, ${errors} errors`);
+
+        if (done > 0) {
+            await this.app.spawnWorldMarkers();
+        }
     }
 
     getStatus(): { total: number; done: number; errors: number; fetching: boolean } {

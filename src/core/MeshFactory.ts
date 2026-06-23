@@ -1,7 +1,7 @@
 import { WebIO, Primitive, Texture as GLTFTexture } from "@gltf-transform/core";
 import { vec3 } from "gl-matrix";
 import { MeshData, createMeshData, STANDARD_BUFFER_LAYOUT, TERRAIN_BUFFER_LAYOUT } from "./MeshData";
-import { geodeticToSceneCoord } from "../utils";
+import { geodeticToSceneCoord, EARTH_HEIGHT_EXAGGERATION } from "../utils";
 
 /**
  * Buffer layout for GLTF models: position (vec3) + normal (vec3) + uv (vec2)
@@ -523,7 +523,7 @@ export default class MeshFactory {
         width: number,
         height: number,
         bounds: { west: number; south: number; east: number; north: number },
-        heightExaggeration: number = 100
+        heightExaggeration: number = EARTH_HEIGHT_EXAGGERATION
     ): MeshData {
         if (heightData.length !== width * height) {
             throw new Error(`Heightmap data size mismatch: expected ${width * height}, got ${heightData.length}`);

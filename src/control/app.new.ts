@@ -19,6 +19,7 @@ import {
     MeshData
 } from "../core";
 import EarthTileManager from "./earthTileManager";
+import { MARKERS, MarkerData, geodeticMarkerToSceneCoord } from "../utils";
 
 export default class App {
     canvas: HTMLCanvasElement;
@@ -46,6 +47,9 @@ export default class App {
     billboardPositions: vec3[] = [];
     billboardObjects: RenderableObject[] = [];
     quadCreated: boolean = false;
+
+    private worldMarkerObjects: RenderableObject[] = [];
+    private worldMarkerMaterials = new Map<string, { bindGroup: GPUBindGroup }>();
 
     // Terrain compute info
     private terrainVertexBuffer: GPUBuffer | null = null;
@@ -113,7 +117,7 @@ export default class App {
         this.panelMaterial = await MaterialFactory.fromTexture(this.renderer.getDevice(), "img/panelbaked.png", this.renderer.getMaterialGroupLayout());
 
         const earthTileManager = new EarthTileManager(this);
-        earthTileManager.startFetching(6);
+        earthTileManager.startFetching(2);
     }
 
 
@@ -427,6 +431,44 @@ export default class App {
 
         this.scene.add(quad);
         console.log(`✅ Quad added to scene`);
+    }
+
+    async spawnWorldMarkers(): Promise<void> {
+        for (const marker of MARKERS) {
+            await this.spawnGeodeticMarker(marker);
+        }
+        console.log(`🌍 ${MARKERS.length} world marker(s) placed on globe`);
+    }
+
+    async spawnGeodeticMarker(marker: MarkerData): Promise<RenderableObject> {
+        const scenePos = geodeticMarkerToSceneCoord(marker.latitude, marker.longitude, marker.height);
+        const position = vec3.fromValues(scenePos.x, scenePos.y, scenePos.z);
+
+        const device = this.renderer.getDevice();
+        const layout = this.renderer.getMaterialGroupLayout();
+        const colorKey = marker.color.join(',');
+
+        if (!this.worldMarkerMaterials.has(colorKey)) {
+            this.worldMarkerMaterials.set(
+                colorKey,
+                await MaterialFactory.fromColor(device, marker.color, layout)
+            );
+        }
+
+        const material = this.worldMarkerMaterials.get(colorKey)!;
+        const mesh = MeshFactory.quad(device, 0.2);
+
+        const billboard = new RenderableObject({
+            mesh,
+            material: material.bindGroup,
+            renderType: RenderType.Billboard,
+            transform: new Transform(position)
+        });
+
+        this.scene.add(billboard);
+        this.worldMarkerObjects.push(billboard);
+        console.log(`📍 Marker "${marker.label}" → (${position[0].toFixed(3)}, ${position[1].toFixed(3)}, ${position[2].toFixed(3)})`);
+        return billboard;
     }
 
     async spawnBillboard(position: vec3): Promise<RenderableObject> {

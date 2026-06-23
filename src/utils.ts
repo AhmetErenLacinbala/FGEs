@@ -99,6 +99,25 @@ export const EARTH_MODEL = {
     MODEL_SCALE: 0.01,         // Sahnedeki scale faktörü
 };
 
+/** Terrain heightmap yükseklik abartması (MeshFactory.fromHeightmapGeodetic ile aynı) */
+export const EARTH_HEIGHT_EXAGGERATION = 100;
+
+/**
+ * Marker koordinatını geoid tile dünyasındaki sahne pozisyonuna çevirir.
+ * Yüzeyden hafifçe dışarı offset uygular (billboard görünürlüğü için).
+ */
+export function geodeticMarkerToSceneCoord(
+    latitude: number,
+    longitude: number,
+    height: number = 0,
+    surfaceOffset: number = 0.05
+): CartesianCoord {
+    const p = geodeticToSceneCoord(latitude, longitude, height * EARTH_HEIGHT_EXAGGERATION);
+    const len = Math.hypot(p.x, p.y, p.z) || 1;
+    const scale = (len + surfaceOffset) / len;
+    return { x: p.x * scale, y: p.y * scale, z: p.z * scale };
+}
+
 /**
  * Geodetik koordinatları (lat/lon/height) sahne koordinatlarına çevirir
  * Dünya modeli için kullanılır
