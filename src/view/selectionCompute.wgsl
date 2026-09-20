@@ -13,7 +13,7 @@ struct SelectionQuad {
     _pad3: f32,
 };
 
-// Vertex struct matching TERRAIN_BUFFER_LAYOUT (8 floats)
+// Vertex struct matching POSITION_NORMAL_UV_BUFFER_LAYOUT (8 floats)
 // position (3) + normal (3) + uv (2)
 struct Vertex {
     px: f32,  // position.x
@@ -136,4 +136,3 @@ fn write_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         outputVertices[writeIdx] = OutputVertex(vertex.px, vertex.py, vertex.pz);
     }
 }
-

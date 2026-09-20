@@ -1,6 +1,8 @@
 import App from './app.new';
 import { solarTerrainService } from '../services/solarTerrainService';
-import { MeshFactory, MaterialFactory, RenderableObject, Transform, RenderType } from '../core';
+import { MeshFactory, RenderableObject, Transform } from 'fges';
+import SolarTerrainMaterialFactory from '../rendering/SolarTerrainMaterialFactory';
+import { SOLAR_TERRAIN_RENDER_TYPE } from '../rendering/SolarTerrainRenderer';
 
 interface TileState {
     level: number;
@@ -61,7 +63,7 @@ export default class EarthTileManager {
                     tileData.bounds
                 );
 
-                const terrainMaterial = MaterialFactory.createTerrainMaterial(
+                const terrainMaterial = SolarTerrainMaterialFactory.createTerrainMaterial(
                     device,
                     {
                         data: tileData.solarData.ghiData,
@@ -70,7 +72,7 @@ export default class EarthTileManager {
                         minGHI: tileData.solarData.minGHI,
                         maxGHI: tileData.solarData.maxGHI
                     },
-                    { data: null },
+                    null,
                     terrainLayout,
                     blendBuffer,
                     this.app.renderer.getSelectionQuadBuffer()
@@ -79,7 +81,7 @@ export default class EarthTileManager {
                 const terrain = new RenderableObject({
                     mesh: terrainMesh,
                     material: terrainMaterial.bindGroup,
-                    renderType: RenderType.Terrain,
+                    renderType: SOLAR_TERRAIN_RENDER_TYPE,
                     transform: new Transform()
                 });
 

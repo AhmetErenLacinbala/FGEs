@@ -8,7 +8,6 @@
 import $ from "jquery";
 import { vec3 } from "gl-matrix";
 import {
-    Renderer,
     Scene,
     RenderableObject,
     InstancedMesh,
@@ -17,13 +16,15 @@ import {
     Transform,
     RenderType,
     MeshData
-} from "../core";
+} from "fges";
 import EarthTileManager from "./earthTileManager";
-import { MARKERS, MarkerData, geodeticMarkerToSceneCoord } from "../utils";
+import { geodeticMarkerToSceneCoord } from "fges";
+import { MARKERS, type MarkerData } from "../config/markers";
+import SolarTerrainRenderer from "../rendering/SolarTerrainRenderer";
 
 export default class App {
     canvas: HTMLCanvasElement;
-    renderer: Renderer;
+    renderer: SolarTerrainRenderer;
     scene: Scene;
 
     // UI labels
@@ -77,7 +78,7 @@ export default class App {
 
     constructor(canvas: HTMLCanvasElement) {
         this.canvas = canvas;
-        this.renderer = new Renderer(canvas);
+        this.renderer = new SolarTerrainRenderer(canvas);
         this.scene = new Scene();
 
         this.keyLabel = document.getElementById('keyboardKey')!;
@@ -676,6 +677,5 @@ export default class App {
         console.log(`✅ Created ${this.panelInstances.getInstanceCount()} panel instances`);
     }
 }
-
 
 

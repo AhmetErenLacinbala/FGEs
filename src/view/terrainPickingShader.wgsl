@@ -1,5 +1,5 @@
 // Terrain Picking Shader
-// Uses TERRAIN_BUFFER_LAYOUT (position + normal + uv)
+// Uses POSITION_NORMAL_UV_BUFFER_LAYOUT (position + normal + uv)
 
 struct TransformData {
     view: mat4x4<f32>,
@@ -38,4 +38,3 @@ fn vs_main(
 fn fs_main(@location(0) worldPosition: vec3<f32>) -> @location(0) vec4<f32> {
     return vec4<f32>(worldPosition, 1.0);
 }
-

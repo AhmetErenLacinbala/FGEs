@@ -5,9 +5,10 @@
 
 import App from './app.new';
 import { solarTerrainService } from '../services/solarTerrainService';
-import { MeshFactory, MaterialFactory, RenderableObject, Transform, RenderType } from '../core';
+import { MeshFactory, RenderableObject, Transform, geodeticToSceneCoord } from 'fges';
 import { vec3 } from 'gl-matrix';
-import { geodeticToSceneCoord } from '../utils';
+import SolarTerrainMaterialFactory from '../rendering/SolarTerrainMaterialFactory';
+import { SOLAR_TERRAIN_RENDER_TYPE } from '../rendering/SolarTerrainRenderer';
 
 declare global {
     interface Window {
@@ -402,7 +403,7 @@ export default class MapController {
             this.showStatus(' Fetching satellite imagery...', 'loading');
             const zoom = this.calculateSatelliteZoom(this.currentScale);
 
-            const satelliteImage = await MaterialFactory.fetchSatelliteImage(
+            const satelliteImage = await SolarTerrainMaterialFactory.fetchSatelliteImage(
                 this.currentLat,
                 this.currentLng,
                 this.apiKey,
@@ -415,7 +416,7 @@ export default class MapController {
             this.app.renderer.updateBlendSettings(useSatellite ? sliderOpacity : 0);
 
             // Create dual-texture terrain material
-            const terrainMaterial = MaterialFactory.createTerrainMaterial(
+            const terrainMaterial = SolarTerrainMaterialFactory.createTerrainMaterial(
                 device,
                 {
                     data: tileData.solarData.ghiData,
@@ -424,7 +425,7 @@ export default class MapController {
                     minGHI: tileData.solarData.minGHI,
                     maxGHI: tileData.solarData.maxGHI
                 },
-                { data: satelliteImage },
+                satelliteImage,
                 terrainLayout,
                 blendBuffer,
                 this.app.renderer.getSelectionQuadBuffer()
@@ -438,7 +439,7 @@ export default class MapController {
             const terrain = new RenderableObject({
                 mesh: terrainMesh,
                 material: terrainMaterial.bindGroup,
-                renderType: RenderType.Terrain,
+                renderType: SOLAR_TERRAIN_RENDER_TYPE,
                 transform: new Transform()
             });
 
@@ -542,7 +543,7 @@ export default class MapController {
             );
 
             this.showStatus('Fetching satellite imagery...', 'loading');
-            const satelliteImage = await MaterialFactory.fetchSatelliteImage(
+            const satelliteImage = await SolarTerrainMaterialFactory.fetchSatelliteImage(
                 this.currentLat,
                 this.currentLng,
                 this.apiKey,
@@ -553,7 +554,7 @@ export default class MapController {
             const sliderOpacity = parseInt(this.satelliteOpacitySlider?.value ?? '20') / 100;
             this.app.renderer.updateBlendSettings(useSatellite ? sliderOpacity : 0);
 
-            const terrainMaterial = MaterialFactory.createTerrainMaterial(
+            const terrainMaterial = SolarTerrainMaterialFactory.createTerrainMaterial(
                 device,
                 {
                     data: tileData.solarData.ghiData,
@@ -562,7 +563,7 @@ export default class MapController {
                     minGHI: tileData.solarData.minGHI,
                     maxGHI: tileData.solarData.maxGHI
                 },
-                { data: satelliteImage },
+                satelliteImage,
                 terrainLayout,
                 blendBuffer,
                 this.app.renderer.getSelectionQuadBuffer()
@@ -575,7 +576,7 @@ export default class MapController {
             const terrain = new RenderableObject({
                 mesh: terrainMesh,
                 material: terrainMaterial.bindGroup,
-                renderType: RenderType.Terrain,
+                renderType: SOLAR_TERRAIN_RENDER_TYPE,
                 transform: new Transform()
             });
 
@@ -639,7 +640,7 @@ export default class MapController {
             this.showStatus(' Fetching satellite imagery...', 'loading');
             const zoom = this.calculateSatelliteZoom(this.currentScale);
 
-            const satelliteImage = await MaterialFactory.fetchSatelliteImage(
+            const satelliteImage = await SolarTerrainMaterialFactory.fetchSatelliteImage(
                 this.currentLat,
                 this.currentLng,
                 this.apiKey,
@@ -652,7 +653,7 @@ export default class MapController {
             this.app.renderer.updateBlendSettings(useSatellite ? sliderOpacity : 0);
 
             // Create dual-texture terrain material
-            const terrainMaterial = MaterialFactory.createTerrainMaterial(
+            const terrainMaterial = SolarTerrainMaterialFactory.createTerrainMaterial(
                 device,
                 {
                     data: tileData.solarData.ghiData,
@@ -661,7 +662,7 @@ export default class MapController {
                     minGHI: tileData.solarData.minGHI,
                     maxGHI: tileData.solarData.maxGHI
                 },
-                { data: satelliteImage },
+                satelliteImage,
                 terrainLayout,
                 blendBuffer,
                 this.app.renderer.getSelectionQuadBuffer()
@@ -675,7 +676,7 @@ export default class MapController {
             const terrain = new RenderableObject({
                 mesh: terrainMesh,
                 material: terrainMaterial.bindGroup,
-                renderType: RenderType.Terrain,
+                renderType: SOLAR_TERRAIN_RENDER_TYPE,
                 transform: new Transform(
                     vec3.fromValues(0, 0, -5),
                     vec3.fromValues(0, 0, 0),
@@ -805,4 +806,3 @@ export default class MapController {
         return 14;
     }
 }
-

@@ -1,5 +1,5 @@
 import { mat4, vec3 } from "gl-matrix";
-import { Deg2Rad } from "../utils";
+import { Deg2Rad } from "fges";
 
 
 export default class Triangle {

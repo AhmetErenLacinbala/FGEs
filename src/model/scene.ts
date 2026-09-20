@@ -1,5 +1,5 @@
 import Triangle from "./triangle";
-import Camera from "./camera";
+import { Camera } from "fges";
 import { vec3, mat4 } from "gl-matrix";
 import { ObjectTypes, RenderData } from "./definitions";
 import GameObject from "./object";
@@ -45,7 +45,7 @@ export default class Scene {
 
             let blank_matrix = mat4.create();
             for (let j = 0; j < 16; j++) {
-                this.object_data[16 * i + j] = <number>blank_matrix.at(j);
+                this.object_data[16 * i + j] = blank_matrix[j];
             }
             i++;
             this.triangle_count++;
@@ -87,7 +87,7 @@ export default class Scene {
             triangle.update();
             let model = triangle.getModel();
             for (let j = 0; j < 16; j++) {
-                this.object_data[16 * i + j] = <number>model.at(j);
+                this.object_data[16 * i + j] = model[j];
             }
             i++;
         });
@@ -96,7 +96,7 @@ export default class Scene {
             quad.update();
             let model = quad.getModel();
             for (let j = 0; j < 16; j++) {
-                this.object_data[16 * i + j] = <number>model.at(j);
+                this.object_data[16 * i + j] = model[j];
             }
             i++;
         });*/
@@ -105,7 +105,7 @@ export default class Scene {
             terrain.update();
             let model = terrain.getModel();
             for (let j = 0; j < 16; j++) {
-                this.object_data[16 * i + j] = <number>model.at(j);
+                this.object_data[16 * i + j] = model[j];
             }
             i++;
         });
@@ -113,7 +113,7 @@ export default class Scene {
         this.vase.update();
         let model = this.vase.getModel();
         for (let j = 0; j < 16; j++) {
-            this.object_data[16 * i + j] = <number>model.at(j);
+            this.object_data[16 * i + j] = model[j];
         }
         /*this.statue.update();
         let model = this.statue.getModel();

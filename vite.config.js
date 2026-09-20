@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from 'vite';
 import tailwindcss from '@tailwindcss/vite';
+import { fileURLToPath, URL } from 'node:url';
 
 export default defineConfig(({ command, mode }) => {
     // Load env file based on `mode` in the current working directory.
@@ -10,6 +11,12 @@ export default defineConfig(({ command, mode }) => {
     console.log('🔧 Vite Config - API Base URL:', env.VITE_API_BASE_URL);
     
     return {
+        resolve: {
+            // Compile the local engine source so its WGSL `?raw` imports are handled by Vite.
+            alias: {
+                fges: fileURLToPath(new URL('./lib/fges/src/index.ts', import.meta.url)),
+            },
+        },
         plugins: [
             tailwindcss(),
         ],

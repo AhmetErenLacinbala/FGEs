@@ -8,6 +8,10 @@
 
     /* Bundler mode */
     "moduleResolution": "bundler",
+    "baseUrl": ".",
+    "paths": {
+      "fges": ["./lib/fges/src/index.ts"]
+    },
     "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "moduleDetection": "force",
@@ -27,5 +31,5 @@
     "noImplicitAny": true,
     "types": ["node", "@webgpu/types", "@types/jquery", "@types/obj-file-parser", "google.maps"],
   },
-  "include": ["src"]
+  "include": ["src", "lib/fges/src"]
 }
