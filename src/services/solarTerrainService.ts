@@ -18,6 +18,7 @@ export interface TileResponse {
         dataShape: [number, number];
     };
     cacheInfo: {
+        backendUrl: string;
         downloadUrl: string;
         ghiTileUrl: string;
         region: {
@@ -73,6 +74,7 @@ export interface ProcessedTileData {
 
 export class SolarTerrainService {
     private tileCache: Map<string, ProcessedTileData> = new Map();
+    private inFlightTiles: Map<string, Promise<ProcessedTileData>> = new Map();
 
     constructor() {
         console.log('🌞 SolarTerrainService initialized with API service');
@@ -80,123 +82,85 @@ export class SolarTerrainService {
     }
 
     async generateCompleteTile(request: TileRequest): Promise<ProcessedTileData> {
-        try {
-            console.log('🚀 Requesting complete tile...', request);
-
+        const tileId = this.generateTileId(request);
+        return this.getOrLoadTile(tileId, async () => {
             const response = await apiService.generateTile(request);
-
             if (!response.ok) {
-                throw new Error(`Backend error: ${response.status} ${response.statusText}`);
+                throw new Error(
+                    'Backend error: ' + response.status + ' ' + response.statusText
+                );
             }
 
             const tileResponse: TileResponse = await response.json();
-            console.log('✅ Backend response received:', tileResponse);
-
-            console.log('🔍 Checking GHI data in response:');
-            console.log('  - GHI Success:', tileResponse.ghiResult?.success);
-            console.log('  - GHI Filename:', tileResponse.ghiResult?.filename);
-            console.log('  - GHI URL:', tileResponse.cacheInfo?.ghiTileUrl);
-            console.log('  - GHI Resolution:', tileResponse.ghiResult?.resolution);
-            console.log('  - GHI Data Shape:', tileResponse.ghiResult?.dataShape);
-
+            const heightmapUrl = tileResponse.cacheInfo.backendUrl;
+            const solarUrl = tileResponse.cacheInfo.ghiTileUrl;
             const [heightmapData, solarData] = await Promise.all([
-                this.downloadAndProcessHeightmap(tileResponse.cacheInfo.downloadUrl),
-                this.downloadAndProcessSolarData(apiService.getGHIDataUrl(tileResponse.cacheInfo.ghiTileUrl))
+                this.downloadAndProcessHeightmap(heightmapUrl),
+                this.downloadAndProcessSolarData(solarUrl)
             ]);
 
-            const tileId = this.generateTileId(request);
-            const processedTile: ProcessedTileData = {
+            return {
                 tileId,
                 bounds: tileResponse.cacheInfo.region,
                 center: tileResponse.cacheInfo.centerCoordinates,
                 heightmap: heightmapData,
                 solarData: solarData,
-                heightmapUrl: tileResponse.cacheInfo.downloadUrl,
-                solarUrl: apiService.getGHIDataUrl(tileResponse.cacheInfo.ghiTileUrl)
+                heightmapUrl,
+                solarUrl
             };
-
-            this.tileCache.set(tileId, processedTile);
-
-            console.log('✅ Complete tile processed:', {
-                tileId,
-                heightmapSize: `${heightmapData.width}x${heightmapData.height}`,
-                solarSize: `${solarData.width}x${solarData.height}`,
-                heightRange: `${heightmapData.minHeight.toFixed(1)}m to ${heightmapData.maxHeight.toFixed(1)}m`,
-                ghiRange: `${solarData.minGHI.toFixed(2)} to ${solarData.maxGHI.toFixed(2)} ${solarData.unit}`
-            });
-
-            return processedTile;
-
-        } catch (error) {
-            console.error('❌ Failed to generate complete tile:', error);
-            throw error;
-        }
-    }
-
-    async generateTileFromBounds(bounds: {
-        north: number; south: number; east: number; west: number;
-    }, scale: number = 10): Promise<ProcessedTileData> {
-        const response = await apiService.generateTerrain({
-            north: bounds.north,
-            south: bounds.south,
-            east: bounds.east,
-            west: bounds.west,
-            scale
         });
-
-        if (!response.ok) {
-            throw new Error(`Backend error: ${response.status} ${response.statusText}`);
-        }
-
-        const tileResponse: TileResponse = await response.json();
-
-        const [heightmapData, solarData] = await Promise.all([
-            this.downloadAndProcessHeightmap(tileResponse.cacheInfo.downloadUrl),
-            this.downloadAndProcessSolarData(apiService.getGHIDataUrl(tileResponse.cacheInfo.ghiTileUrl))
-        ]);
-
-        const tileId = `bounds_${bounds.west}_${bounds.south}_${bounds.east}_${bounds.north}_${scale}`;
-        const processedTile: ProcessedTileData = {
-            tileId,
-            bounds: tileResponse.cacheInfo.region,
-            center: tileResponse.cacheInfo.centerCoordinates,
-            heightmap: heightmapData,
-            solarData: solarData,
-            heightmapUrl: tileResponse.cacheInfo.downloadUrl,
-            solarUrl: apiService.getGHIDataUrl(tileResponse.cacheInfo.ghiTileUrl)
-        };
-
-        this.tileCache.set(tileId, processedTile);
-        return processedTile;
     }
 
     async fetchLodTile(level: number, x: number, y: number): Promise<ProcessedTileData> {
-        const response = await apiService.getLodTile(level, x, y);
+        const tileId = 'lod_' + level + '_' + x + '_' + y;
+        return this.getOrLoadTile(tileId, async () => {
+            const response = await apiService.getLodTile(level, x, y);
+            if (!response.ok) {
+                throw new Error(
+                    'LOD tile error: ' + response.status + ' ' + response.statusText
+                );
+            }
 
-        if (!response.ok) {
-            throw new Error(`LOD tile error: ${response.status} ${response.statusText}`);
-        }
+            const tileResponse: TileResponse = await response.json();
+            const heightmapUrl = tileResponse.cacheInfo.backendUrl;
+            const solarUrl = tileResponse.cacheInfo.ghiTileUrl;
+            const [heightmapData, solarData] = await Promise.all([
+                this.downloadAndProcessHeightmap(heightmapUrl),
+                this.downloadAndProcessSolarData(solarUrl)
+            ]);
 
-        const tileResponse: TileResponse = await response.json();
+            return {
+                tileId,
+                bounds: tileResponse.cacheInfo.region,
+                center: tileResponse.cacheInfo.centerCoordinates,
+                heightmap: heightmapData,
+                solarData,
+                heightmapUrl,
+                solarUrl
+            };
+        });
+    }
 
-        const [heightmapData, solarData] = await Promise.all([
-            this.downloadAndProcessHeightmap(tileResponse.cacheInfo.downloadUrl),
-            this.downloadAndProcessSolarData(apiService.getGHIDataUrl(tileResponse.cacheInfo.ghiTileUrl))
-        ]);
+    private getOrLoadTile(
+        tileId: string,
+        loader: () => Promise<ProcessedTileData>
+    ): Promise<ProcessedTileData> {
+        const cached = this.tileCache.get(tileId);
+        if (cached) return Promise.resolve(cached);
 
-        const tileId = `lod_${level}_${x}_${y}`;
-        const processedTile: ProcessedTileData = {
-            tileId,
-            bounds: tileResponse.cacheInfo.region,
-            center: tileResponse.cacheInfo.centerCoordinates,
-            heightmap: heightmapData,
-            solarData: solarData,
-            heightmapUrl: tileResponse.cacheInfo.downloadUrl,
-            solarUrl: apiService.getGHIDataUrl(tileResponse.cacheInfo.ghiTileUrl)
-        };
+        const existing = this.inFlightTiles.get(tileId);
+        if (existing) return existing;
 
-        this.tileCache.set(tileId, processedTile);
-        return processedTile;
+        const request = loader()
+            .then(tile => {
+                this.tileCache.set(tileId, tile);
+                return tile;
+            })
+            .finally(() => {
+                this.inFlightTiles.delete(tileId);
+            });
+        this.inFlightTiles.set(tileId, request);
+        return request;
     }
 
     private async downloadAndProcessHeightmap(downloadUrl: string): Promise<ProcessedTileData['heightmap']> {
