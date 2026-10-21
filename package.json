@@ -1,42 +1,44 @@
 {
-  "name": "solaris-front",
-  "private": true,
-  "version": "0.0.0",
+  "name": "fges",
+  "version": "0.1.0",
+  "description": "A small, extensible WebGPU rendering engine for the web",
   "type": "module",
-  "scripts": {
-    "dev": "vite --mode development",
-    "dev:prod": "vite --mode production",
-    "build": "tsc && vite build --mode production",
-    "build:dev": "tsc && vite build --mode development",
-    "preview": "vite preview",
-    "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist"
+  "sideEffects": false,
+  "main": "./dist/fges.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/fges.js"
+    }
   },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4.1.18",
-    "@tailwindcss/vite": "^4.1.18",
-    "@types/google.maps": "^3.58.1",
-    "@types/jquery": "^3.5.32",
-    "@types/node": "^26.5.1",
-    "@webgpu/types": "^0.1.54",
-    "autoprefixer": "^10.4.23",
-    "gh-pages": "^6.3.0",
-    "postcss": "^8.5.6",
-    "tailwindcss": "^4.1.18",
-    "typescript": "~5.7.2",
-    "vite": "^6.1.0"
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "vite build && tsc -p tsconfig.build.json"
+  },
+  "keywords": [
+    "webgpu",
+    "graphics",
+    "rendering",
+    "3d"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AhmetErenLacinbala/FGEs.git"
   },
   "dependencies": {
     "@gltf-transform/core": "^4.2.1",
-    "@gltf-transform/extensions": "^4.1.2",
-    "@gltf-transform/functions": "^4.1.2",
-    "@types/obj-file-parser": "^0.5.2",
-    "axios": "^1.11.0",
-    "fges": "file:./lib/fges",
-    "geotiff": "^2.1.4-beta.0",
-    "gl-matrix": "^3.4.3",
-    "jquery": "^3.7.1",
-    "obj-file-parser": "^0.6.2",
-    "ts-shader-loader": "^2.0.2"
+    "gl-matrix": "^3.4.3"
+  },
+  "devDependencies": {
+    "@webgpu/types": "^0.1.54",
+    "typescript": "~5.7.2",
+    "vite": "^6.1.0"
   }
 }

@@ -4,32 +4,13 @@
     "useDefineForClassFields": true,
     "module": "ESNext",
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
-    "skipLibCheck": true,
-
-    /* Bundler mode */
     "moduleResolution": "bundler",
-    "baseUrl": ".",
-    "paths": {
-      "fges": ["./lib/fges/src/index.ts"]
-    },
     "allowImportingTsExtensions": true,
     "isolatedModules": true,
-    "moduleDetection": "force",
-    "noEmit": true,
-
-    /* Linting */
     "strict": true,
-    "noUnusedLocals": false, //burayı sonra değiştir
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true,
-
-    "allowJs": true,
-    "sourceMap": true,
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "noImplicitAny": true,
-    "types": ["node", "@webgpu/types", "@types/jquery", "@types/obj-file-parser", "google.maps"],
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": ["@webgpu/types"]
   },
-  "include": ["src", "lib/fges/src"]
+  "include": ["src"]
 }
